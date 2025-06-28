@@ -71,8 +71,12 @@ CREATE_TABLES_SQL = [
     CREATE TABLE IF NOT EXISTS history (
         id SERIAL PRIMARY KEY,
         project_id INTEGER REFERENCES projects(id),
+        user_id TEXT,
         action TEXT,
         details JSONB,
+        diff JSONB,
+        resolved_by TEXT,
+        conflict_details JSONB,
         created_at TIMESTAMP DEFAULT now()
     )
     '''
