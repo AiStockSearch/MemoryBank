@@ -980,6 +980,13 @@ class HistoryType:
     created_at: str
 
 @strawberry.type
+class RuleChangelogEntry:
+    commit: str
+    author: str
+    date: str
+    message: str
+
+@strawberry.type
 class Query:
     @strawberry.field
     async def projects(self) -> List[ProjectType]:
@@ -1029,6 +1036,21 @@ class Query:
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM history WHERE project_id = $1', project_id)
             return [HistoryType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def rule_changelog(self, id: str) -> List[RuleChangelogEntry]:
+        import subprocess, os
+        path = os.path.join('rules', f'{id}.json')
+        if not os.path.exists(path):
+            raise Exception("Правило не найдено")
+        result = subprocess.run(['git', 'log', '--pretty=format:%h|%an|%ad|%s', '--date=iso', '--', path], capture_output=True, text=True)
+        log = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split('|', 3)
+                if len(parts) == 4:
+                    log.append(RuleChangelogEntry(commit=parts[0], author=parts[1], date=parts[2], message=parts[3]))
+        return log
 
 @strawberry.input
 class TaskInput:
