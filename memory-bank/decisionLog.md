@@ -19,4 +19,14 @@ Memory Bank не является таск-трекером. Все задачи
 
 ### Связанные элементы
 - [Паттерн: Circuit Breaker](../systemPatterns.md#circuit-breaker)
-- [Knowledge Package: Epic Integration Social Content](../knowledge_packages/epic-integration-social-content.md) 
+- [Knowledge Package: Epic Integration Social Content](../knowledge_packages/epic-integration-social-content.md)
+
+---
+
+## [Данные из legacy memory_bank/decisionLog.md]
+
+## Автоматизация принятия решений и AI-инициатор
+
+- AI-ассистент инициирует фиксацию решений, голосование, обсуждения, логирование в decisionLog.md.
+- Workflow: при обсуждении задач, Epic, изменений — AI предлагает зафиксировать решение, добавить summary, инициировать голосование.
+- Примеры: шаблоны для голосования, обсуждений, AI-отчёты по итогам обсуждений, автоматическое логирование решений. 
