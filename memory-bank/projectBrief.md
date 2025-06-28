@@ -267,6 +267,69 @@
 - Торговые марки: <...>
 - AI-мониторинг нарушений: <...>
 
+## 51. Problem Clustering & Graph Analysis
+- Граф проблем и сегментов (Mermaid/Graphviz):
+  ```mermaid
+  graph TD
+    B2B --> HighCost
+    B2C --> LowTrust
+    B2B --> IntegrationPain
+    B2C --> UXIssues
+    HighCost --> PriceOptimizer
+    IntegrationPain --> APIv2
+  ```
+- AI-кластеризация проблем:
+  - Кластер 1: "Стоимость" — HighCost, ExpensiveOnboarding, HiddenFees
+  - Кластер 2: "UX" — UXIssues, ComplicatedFlow, SlowSupport
+  - Кластер 3: "Интеграции" — IntegrationPain, NoZapier, APIv1Bugs
+- Матрица "problem x segment":
+  | Проблема         | B2B | B2C | SMB | Enterprise |
+  |------------------|-----|-----|-----|------------|
+  | HighCost         |  X  |     |  X  |     X      |
+  | UXIssues         |     |  X  |  X  |            |
+  | IntegrationPain  |  X  |     |     |     X      |
+- Heatmap проблем по сегментам: (AI может сгенерировать цветовую карту — чем темнее, тем чаще встречается проблема)
+
+## 52. Problem Distribution (Bell Curve)
+- Bell curve проблем (гистограмма/кривая):
+  - Ядро: HighCost (30%), UXIssues (25%), IntegrationPain (20%)
+  - Длинный хвост: RareBug1 (1%), RareBug2 (0.5%), ...
+- Таблица фокусных проблем:
+  | Проблема        | Частота | Сегменты   | Фичи         | Impact |
+  |-----------------|---------|------------|--------------|--------|
+  | HighCost        | 30%     | B2B, SMB   | PriceOpt     | High   |
+  | UXIssues        | 25%     | B2C, SMB   | UIv2         | High   |
+  | IntegrationPain | 20%     | B2B, Ent.  | APIv2        | High   |
+- AI-рекомендация по фокусу:
+  > AI: Рекомендуется сфокусироваться на HighCost и UXIssues — они покрывают 55% всех болей и влияют на ключевые сегменты.
+
+## 53. Advanced Competitor Analysis
+- Список конкурентов:
+  | Название   | Сайт           | Сегменты | Killer features   | Цена | Причины выбора      |
+  |------------|----------------|----------|------------------|------|---------------------|
+  | CompA      | compa.com      | B2B      | FastAPI, Support | $$$  | Скорость, API       |
+  | CompB      | compb.com      | B2C      | UX, Mobile       | $$   | Удобство, мобильность|
+  | CompC      | compc.com      | SMB      | Price, Integr.   | $    | Цена, интеграции    |
+- SWOT-конкурентов:
+  - Сильные стороны: быстрый API, сильная поддержка, UX
+  - Слабые стороны: высокая цена, мало интеграций
+  - Возможности: новые рынки, AI-фичи
+  - Угрозы: демпинг, новые игроки
+- AI-анализ отзывов конкурентов:
+  - Что хвалят: "Очень быстрый API", "Отличная поддержка"
+  - Что ругают: "Дорого", "Сложно интегрировать"
+  - Unmet needs: "Нет Zapier", "Нет мобильного приложения"
+- Визуализация конкурентного поля (Mermaid/heatmap):
+  ```mermaid
+  graph LR
+    CompA -- FastAPI --> B2B
+    CompB -- UX --> B2C
+    CompC -- Price --> SMB
+    OurProduct -- UniqueAI --> B2B
+  ```
+
+> AI: Для автоматизации кластеризации, построения графов и анализа конкурентов используйте embedding/semantic similarity, парсинг отзывов, автоматическую генерацию heatmap и bell curve. AI может рекомендовать фокусные проблемы и выявлять "дыры" на рынке.
+
 ---
 
 > AI: Все разделы автоматически проверяются на полноту, связность, актуальность. После генерации — инициировать AI-ревью, экспорт, снапшот. 
