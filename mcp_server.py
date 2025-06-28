@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header
 from pydantic import BaseModel
 from cacd import CACD
-from typing import Optional
+from typing import Optional, List
 import json
 from fastapi.responses import HTMLResponse, StreamingResponse
 import logging
@@ -561,4 +561,40 @@ async def rollback_project(project_id: int, tag: str = None, user_id: str = Head
     msg = f"Откат проекта {project_id} к снапшоту {tag} завершён"
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
-    return {"status": "rollback_done", "tag": tag, "result": resp} 
+    return {"status": "rollback_done", "tag": tag, "result": resp}
+
+@app.get('/history')
+async def get_history(
+    project_id: Optional[int] = Query(None),
+    user_id: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    limit: int = Query(100)
+) -> List[dict]:
+    """
+    Возвращает историю событий с фильтрацией по проекту, пользователю, действию, дате.
+    """
+    pool = await cacd.memory._get_pool()
+    query = 'SELECT * FROM history WHERE 1=1'
+    params = []
+    if project_id:
+        query += ' AND project_id = $' + str(len(params)+1)
+        params.append(project_id)
+    if user_id:
+        query += ' AND user_id = $' + str(len(params)+1)
+        params.append(user_id)
+    if action:
+        query += ' AND action = $' + str(len(params)+1)
+        params.append(action)
+    if date_from:
+        query += ' AND created_at >= $' + str(len(params)+1)
+        params.append(date_from)
+    if date_to:
+        query += ' AND created_at <= $' + str(len(params)+1)
+        params.append(date_to)
+    query += ' ORDER BY created_at DESC LIMIT $' + str(len(params)+1)
+    params.append(limit)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+        return [dict(row) for row in rows] 
