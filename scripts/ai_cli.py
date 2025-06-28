@@ -1,8 +1,9 @@
 import argparse
 import sys
 import os
-from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec, export_to_pdf, export_to_pptx
-from scripts.ai_assistant import get_tasks
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+from ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec, export_to_pdf, export_to_pptx
+from ai_assistant import get_tasks
 import pandas as pd
 
 def cmd_summary(args):
@@ -291,7 +292,6 @@ def cmd_autofill_spec(args):
     if use_mock:
         print('Нет входных данных — генерирую тестовые данные...')
         import pandas as pd
-        # Примерные данные
         problems = pd.DataFrame([
             {'problem': 'High cost', 'segment': 'B2B', 'frequency': 30, 'source': 'survey'},
             {'problem': 'UX is confusing', 'segment': 'B2C', 'frequency': 25, 'source': 'feedback'},
@@ -299,17 +299,27 @@ def cmd_autofill_spec(args):
             {'problem': 'No mobile version', 'segment': 'SMB', 'frequency': 10, 'source': 'review'},
             {'problem': 'Slow support', 'segment': 'B2C', 'frequency': 5, 'source': 'forum'},
         ])
-        competitors = pd.DataFrame([
-            {'name': 'CompA', 'segment': 'B2B', 'killer_features': 'FastAPI, Support', 'price': '$$$', 'review': 'Очень быстрый API'},
-            {'name': 'CompB', 'segment': 'B2C', 'killer_features': 'UX, Mobile', 'price': '$$', 'review': 'Удобно, но дорого'},
-            {'name': 'CompC', 'segment': 'SMB', 'killer_features': 'Price, Integr.', 'price': '$', 'review': 'Дёшево, мало интеграций'},
-        ])
-        data = {'problems': problems, 'competitors': competitors}
-        # AI-логика работает с этими DataFrame
+        # Данные по конкурентам теперь опциональны
+        competitors = None
+        try:
+            competitors = pd.DataFrame([
+                {'name': 'CompA', 'segment': 'B2B', 'killer_features': 'FastAPI, Support', 'price': '$$$', 'review': 'Очень быстрый API'},
+                {'name': 'CompB', 'segment': 'B2C', 'killer_features': 'UX, Mobile', 'price': '$$', 'review': 'Удобно, но дорого'},
+                {'name': 'CompC', 'segment': 'SMB', 'killer_features': 'Price, Integr.', 'price': '$', 'review': 'Дёшево, мало интеграций'},
+            ])
+        except Exception:
+            competitors = None
+        data = {'problems': problems}
+        if competitors is not None:
+            data['competitors'] = competitors
         problems, clusters = ai_cluster_problems(problems)
         graph_md = ai_generate_graphs(clusters)
         bell_curve_md = ai_generate_bell_curve(problems)
-        competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        if competitors is not None:
+            competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        else:
+            competitors_md = swot_md = unmet_md = ''
+            print('Внимание: данные по конкурентам отсутствуют, секция будет пропущена.')
         focus_md = ai_generate_recommendations(problems, clusters)
         content = f"""
 # Project Brief: <Автозаполнение — тестовые данные>
@@ -319,16 +329,10 @@ def cmd_autofill_spec(args):
 
 ## 52. Problem Distribution (Bell Curve)
 {bell_curve_md}
-
-## 53. Advanced Competitor Analysis
-{competitors_md}
-{swot_md}
-{unmet_md}
-
-{focus_md}
-
-> AI: Для теста вы можете сгенерировать свои данные или ввести вручную. Если хотите протестировать на реальных данных — используйте опцию --input.
 """
+        if competitors_md or swot_md or unmet_md:
+            content += f"\n## 53. Advanced Competitor Analysis\n{competitors_md}\n{swot_md}\n{unmet_md}\n"
+        content += f"\n{focus_md}\n\n> AI: Для теста вы можете сгенерировать свои данные или ввести вручную. Если хотите протестировать на реальных данных — используйте опцию --input.\n"
         with open(out_path, 'w', encoding='utf-8') as f:
             f.write(content)
         print(f'projectBrief.md автозаполнен тестовыми данными: {out_path}')
@@ -343,22 +347,30 @@ def cmd_autofill_spec(args):
             s = input(f'Сегмент для проблемы {i+1}: ')
             f = input(f'Частота (число) для проблемы {i+1}: ')
             problems_list.append({'problem': p, 'segment': s, 'frequency': int(f), 'source': 'manual'})
-        print('Введите 2-3 конкурентов (формат: имя, сегмент, killer features, цена, отзыв):')
         competitors_list = []
-        for i in range(2):
-            n = input(f'Имя конкурента {i+1}: ')
-            s = input(f'Сегмент конкурента {i+1}: ')
-            k = input(f'Killer features конкурента {i+1}: ')
-            pr = input(f'Цена конкурента {i+1}: ')
-            r = input(f'Отзыв о конкуренте {i+1}: ')
-            competitors_list.append({'name': n, 'segment': s, 'killer_features': k, 'price': pr, 'review': r})
+        add_competitors = input('Хотите добавить конкурентов? (y/n): ').strip().lower() == 'y'
+        if add_competitors:
+            print('Введите 2-3 конкурентов (формат: имя, сегмент, killer features, цена, отзыв):')
+            for i in range(2):
+                n = input(f'Имя конкурента {i+1}: ')
+                s = input(f'Сегмент конкурента {i+1}: ')
+                k = input(f'Killer features конкурента {i+1}: ')
+                pr = input(f'Цена конкурента {i+1}: ')
+                r = input(f'Отзыв о конкуренте {i+1}: ')
+                competitors_list.append({'name': n, 'segment': s, 'killer_features': k, 'price': pr, 'review': r})
         problems = pd.DataFrame(problems_list)
-        competitors = pd.DataFrame(competitors_list)
-        data = {'problems': problems, 'competitors': competitors}
+        competitors = pd.DataFrame(competitors_list) if competitors_list else None
+        data = {'problems': problems}
+        if competitors is not None and not competitors.empty:
+            data['competitors'] = competitors
         problems, clusters = ai_cluster_problems(problems)
         graph_md = ai_generate_graphs(clusters)
         bell_curve_md = ai_generate_bell_curve(problems)
-        competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        if competitors is not None and not competitors.empty:
+            competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        else:
+            competitors_md = swot_md = unmet_md = ''
+            print('Внимание: данные по конкурентам отсутствуют, секция будет пропущена.')
         focus_md = ai_generate_recommendations(problems, clusters)
         content = f"""
 # Project Brief: <Автозаполнение — интерактивный режим>
@@ -368,42 +380,43 @@ def cmd_autofill_spec(args):
 
 ## 52. Problem Distribution (Bell Curve)
 {bell_curve_md}
-
-## 53. Advanced Competitor Analysis
-{competitors_md}
-{swot_md}
-{unmet_md}
-
-{focus_md}
-
-> AI: Данные введены вручную. Для теста используйте --mock, для загрузки — --input.
 """
+        if competitors_md or swot_md or unmet_md:
+            content += f"\n## 53. Advanced Competitor Analysis\n{competitors_md}\n{swot_md}\n{unmet_md}\n"
+        content += f"\n{focus_md}\n\n> AI: Данные введены вручную. Для теста используйте --mock, для загрузки — --input.\n"
         with open(out_path, 'w', encoding='utf-8') as f:
             f.write(content)
         print(f'projectBrief.md автозаполнен интерактивно: {out_path}')
         return
 
     # 1. Загрузка данных
+    import pandas as pd
     if input_path.endswith('.csv'):
         data = pd.read_csv(input_path)
+        problems = data
+        competitors = None
     elif input_path.endswith('.json'):
         data = pd.read_json(input_path)
+        problems = data
+        competitors = None
     else:
         print('Поддерживаются только .csv и .json. Или используйте --mock для теста.')
         return
-
-    # 2. AI-кластеризация проблем
-    problems, clusters = ai_cluster_problems(data)
-    # 3. Генерация графов (Mermaid)
+    # Попытка загрузить конкурентов, если есть соответствующий файл
+    competitors_path = 'competitors_template.csv'
+    if os.path.exists(competitors_path):
+        competitors = pd.read_csv(competitors_path)
+    else:
+        competitors = None
+    problems, clusters = ai_cluster_problems(problems)
     graph_md = ai_generate_graphs(clusters)
-    # 4. Bell curve проблем
     bell_curve_md = ai_generate_bell_curve(problems)
-    # 5. Анализ конкурентов
-    competitors_md, swot_md, unmet_md = ai_analyze_competitors(data)
-    # 6. AI-рекомендации по фокусу
+    if competitors is not None and not competitors.empty:
+        competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+    else:
+        competitors_md = swot_md = unmet_md = ''
+        print('Внимание: данные по конкурентам отсутствуют, секция будет пропущена.')
     focus_md = ai_generate_recommendations(problems, clusters)
-
-    # 7. Генерация projectBrief.md
     content = f"""
 # Project Brief: <Автозаполнение>
 
@@ -412,16 +425,10 @@ def cmd_autofill_spec(args):
 
 ## 52. Problem Distribution (Bell Curve)
 {bell_curve_md}
-
-## 53. Advanced Competitor Analysis
-{competitors_md}
-{swot_md}
-{unmet_md}
-
-{focus_md}
-
-> AI: Для теста вы можете сгенерировать свои данные с --mock или ввести вручную. Для реальных данных используйте --input.
 """
+    if competitors_md or swot_md or unmet_md:
+        content += f"\n## 53. Advanced Competitor Analysis\n{competitors_md}\n{swot_md}\n{unmet_md}\n"
+    content += f"\n{focus_md}\n\n> AI: Для теста вы можете сгенерировать свои данные с --mock или ввести вручную. Для реальных данных используйте --input.\n"
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(content)
     print(f'projectBrief.md автозаполнен: {out_path}')
