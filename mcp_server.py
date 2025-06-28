@@ -27,6 +27,7 @@ from jose import jwt, JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 from cursor_rules.fs_rules import list_rules, create_rule, update_rule, delete_rule, export_rules_zip, import_rules_zip, get_rule_changelog, rollback_rule
 from cursor_rules.mdc_parser import validate_mdc
+import base64
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -1095,6 +1096,23 @@ class Query:
                     log.append(TemplateChangelogEntry(commit=parts[0], author=parts[1], date=parts[2], message=parts[3]))
         return log
 
+    @strawberry.field
+    def rules_mdc(self) -> list[RuleMDC]:
+        return [RuleMDC(meta=r['meta'], body=r['body'], path=r['path']) for r in list_rules()]
+
+    @strawberry.field
+    def rule_mdc(self, path: str) -> RuleMDC:
+        rules = [r for r in list_rules() if r['path'] == path]
+        if not rules:
+            raise Exception('Rule not found')
+        r = rules[0]
+        return RuleMDC(meta=r['meta'], body=r['body'], path=r['path'])
+
+    @strawberry.field
+    def changelog_mdc(self, path: str) -> list[MDCChangelogEntry]:
+        log = get_rule_changelog(path)
+        return [MDCChangelogEntry(**entry) for entry in log if 'commit' in entry]
+
 @strawberry.input
 class TaskInput:
     project_id: int
@@ -1466,6 +1484,43 @@ class Mutation:
                 })
         return BatchDeleteResult(status="ok", deleted_ids=deleted, errors=errors)
 
+    @strawberry.mutation
+    def create_rule_mdc(self, input: RuleMDCInput, user_id: str = '') -> RuleMDC:
+        data = {'meta': input.meta, 'body': input.body}
+        errors = validate_mdc(data)
+        if errors:
+            raise Exception(f'Validation error: {errors}')
+        path = create_rule(input.meta, input.body, filename=input.filename or None, user_id=user_id, reason=input.reason)
+        return RuleMDC(meta=input.meta, body=input.body, path=path)
+
+    @strawberry.mutation
+    def update_rule_mdc(self, input: RuleMDCInput, user_id: str = '') -> RuleMDC:
+        data = {'meta': input.meta, 'body': input.body}
+        errors = validate_mdc(data)
+        if errors:
+            raise Exception(f'Validation error: {errors}')
+        update_rule(input.path, input.meta, input.body, user_id=user_id, reason=input.reason)
+        return RuleMDC(meta=input.meta, body=input.body, path=input.path)
+
+    @strawberry.mutation
+    def delete_rule_mdc(self, path: str, user_id: str = '') -> bool:
+        delete_rule(path, user_id=user_id, reason='delete via GraphQL')
+        return True
+
+    @strawberry.mutation
+    def import_rules_mdc(self, file_b64: str, user_id: str = '') -> int:
+        zip_bytes = base64.b64decode(file_b64)
+        return import_rules_zip(zip_bytes, user_id=user_id, reason='import via GraphQL')
+
+    @strawberry.mutation
+    def export_rules_mdc(self) -> str:
+        zip_bytes = export_rules_zip()
+        return base64.b64encode(zip_bytes).decode('utf-8')
+
+    @strawberry.mutation
+    def rollback_rule_mdc(self, path: str, commit: str, user_id: str = '') -> bool:
+        return rollback_rule(path, commit)
+
 @strawberry.input
 class RuleInput:
     id: str
@@ -1610,6 +1665,27 @@ class Subscription(Subscription):
                 yield ConflictEvent(**event)
         finally:
             conflict_subscribers.remove(queue)
+
+@strawberry.type
+class RuleMDC:
+    meta: dict
+    body: str
+    path: str
+
+@strawberry.type
+class MDCChangelogEntry:
+    commit: str
+    author: str
+    date: str
+    message: str
+
+@strawberry.input
+class RuleMDCInput:
+    meta: dict
+    body: str
+    filename: str = ''
+    path: str = ''
+    reason: str = ''
 
 schema = strawberry.Schema(Query, Mutation, Subscription)
 app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql")
