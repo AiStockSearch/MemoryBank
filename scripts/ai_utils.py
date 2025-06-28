@@ -23,6 +23,11 @@ def generate_mermaid_diagram(diagram_type, data, out_path):
             edges.append(f'    {t} --> {e}')
             edges.append(f'    {e} --> {b}')
         mermaid = 'flowchart TD\n' + '\n'.join(edges)
+    elif diagram_type == "roadmap":
+        # data: list of (этап, дата_начала, дата_конца, статус)
+        mermaid = 'gantt\n    title Roadmap\n    dateFormat  YYYY-MM-DD\n'
+        for stage, start, end, status in data:
+            mermaid += f'    section {stage}\n    {stage} :{status}, {stage}, {start},{end}\n'
     else:
         mermaid = "flowchart TD\n    A[Start] --> B[End]"
     with open(out_path, "w", encoding="utf-8") as f:
@@ -46,4 +51,36 @@ def analyze_task_links(tasks):
     for t in tasks:
         if not t.get('epic') or not t.get('business_goal'):
             missing_links.append(t['id'])
-    return missing_links 
+    return missing_links
+
+def review_changelog(changelog_path="CHANGELOG.md"):
+    if not os.path.exists(changelog_path):
+        print("CHANGELOG.md не найден")
+        return
+    with open(changelog_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    errors = [l for l in lines if any(w in l.lower() for w in ["error", "ошибка", "fail", "bug", "critical"])]
+    summary = f"Всего изменений: {len(lines)}\n"
+    summary += f"Найдено ошибок/аномалий: {len(errors)}\n"
+    if errors:
+        summary += "\nПоследние ошибки/аномалии:\n" + ''.join(errors[-5:])
+    else:
+        summary += "\nОшибок и аномалий не найдено.\n"
+    recommendations = ""
+    if len(errors) > 0:
+        recommendations += "Рекомендуется провести аудит последних изменений, проверить тесты и рассмотреть откат к стабильному снапшоту.\n"
+    if len(lines) > 50:
+        recommendations += "Рекомендуется архивировать старые записи changelog для ускорения анализа.\n"
+    return summary, recommendations
+
+def generate_roadmap(tasks):
+    # tasks: list of dicts с ключами id, title, status, epic, business_goal, start, end
+    # Группируем по epic или статусу, строим Gantt-диаграмму
+    stages = []
+    for t in tasks:
+        stage = t.get('epic') or t.get('title')
+        start = t.get('start', '2024-06-01')
+        end = t.get('end', '2024-06-30')
+        status = 'done' if t.get('status','').lower() in ['done','completed'] else 'active'
+        stages.append((stage, start, end, status))
+    return stages 

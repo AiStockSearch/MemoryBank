@@ -1,7 +1,7 @@
 import argparse
 import sys
 import os
-from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram
+from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap
 from scripts.ai_assistant import get_tasks
 
 def cmd_summary(args):
@@ -41,8 +41,22 @@ def cmd_diagram(args):
         print("Неизвестный тип диаграммы. Используйте task_links или task_lifecycle.")
         sys.exit(1)
 
+def cmd_review_changelog(args):
+    summary, recommendations = review_changelog(args.changelog)
+    print("=== AI-ревью CHANGELOG ===")
+    print(summary)
+    print("--- Рекомендации ---")
+    print(recommendations)
+
+def cmd_roadmap(args):
+    tasks = get_tasks()
+    stages = generate_roadmap(tasks)
+    out_path = args.out or "roadmap.mmd"
+    generate_mermaid_diagram("roadmap", stages, out_path)
+    print(f"Gantt-диаграмма roadmap сохранена в {out_path}")
+
 def main():
-    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram")
+    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap")
     subparsers = parser.add_subparsers(dest="command")
 
     p_summary = subparsers.add_parser("summary", help="Сгенерировать summary по задаче или всем задачам")
@@ -56,6 +70,14 @@ def main():
     p_diagram.add_argument("--type", required=True, help="Тип диаграммы: task_links или task_lifecycle")
     p_diagram.add_argument("--out", help="Путь для сохранения диаграммы")
     p_diagram.set_defaults(func=cmd_diagram)
+
+    p_review = subparsers.add_parser("review-changelog", help="AI-ревью CHANGELOG.md: анализ, рекомендации")
+    p_review.add_argument("--changelog", default="CHANGELOG.md", help="Путь к changelog (по умолчанию CHANGELOG.md)")
+    p_review.set_defaults(func=cmd_review_changelog)
+
+    p_roadmap = subparsers.add_parser("roadmap", help="Сгенерировать Gantt-диаграмму roadmap по задачам")
+    p_roadmap.add_argument("--out", help="Путь для сохранения диаграммы")
+    p_roadmap.set_defaults(func=cmd_roadmap)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
