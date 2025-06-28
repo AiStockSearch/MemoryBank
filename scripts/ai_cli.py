@@ -55,8 +55,110 @@ def cmd_roadmap(args):
     generate_mermaid_diagram("roadmap", stages, out_path)
     print(f"Gantt-диаграмма roadmap сохранена в {out_path}")
 
+def cmd_generate_spec(args):
+    # Генерация projectBrief.md по расширенному шаблону
+    project_type = args.type or 'landing'
+    audience = args.audience.split(',') if args.audience else ['freelancers', 'managers']
+    problems_count = int(args.problems) if args.problems else 100
+    project_name = args.name or 'Demo Project'
+    out_path = args.out or 'projectBrief.md'
+
+    # Скелет расширенного шаблона (можно вынести в отдельный файл)
+    content = f"""# Project Brief: {project_name}
+
+## 1. Мета-данные
+- Project ID: <...>
+- Владелец: <...>
+- Дата старта: <...>
+- Версия: <...>
+- Статус: draft
+- Ссылки: <...>
+
+## 2. Stakeholders & Roles
+| Имя | Роль | Ответственность | Контакт |
+|-----|------|----------------|---------|
+|     |      |                |         |
+
+## 3. Product Strategy & Vision
+- Миссия: <...>
+- Ценности: <...>
+- SWOT: <...>
+- Feature matrix: <...>
+
+## 4. User Research & Personas
+- Персоны: {', '.join(audience)}
+- Pain points: <...>
+
+## 5. Customer Journey & Experience Map
+- Для каждого сегмента: <...>
+- Визуализация: <Mermaid/UML>
+
+## 6. Problem Space & Opportunity Mapping
+- Категории проблем: <...>
+- Opportunity backlog: <...>
+- Пример проблем:
+"""
+    for i in range(1, problems_count+1):
+        content += f"- Проблема {i}: <описание>\n"
+    content += """
+
+## 7. Solution Space
+- User stories: <...>
+- Acceptance criteria: <...>
+- Альтернативы: <...>
+
+## 8. Roadmap & Release Plan
+- Gantt/story map: <...>
+- Value/effort matrix: <...>
+
+## 9. Architecture & Integrations
+- Архитектура: <...>
+- Интеграции: <...>
+- Sequence diagrams: <...>
+
+## 10. Analytics & Success Metrics
+- KPI/OKR: <...>
+- Метрики: <...>
+- BI/дашборды: <...>
+
+## 11. Security & Compliance
+- Требования: <...>
+- DRP: <...>
+
+## 12. UX/UI & Accessibility
+- Дизайн-система: <...>
+- Accessibility: <...>
+
+## 13. Delivery & Estimation
+- Таблица: <...>
+- Story points: <...>
+
+## 14. Risks & Mitigation
+- Риски: <...>
+- Mitigation: <...>
+
+## 15. Acceptance Criteria & DoD
+- Критерии: <...>
+- Тест-кейсы: <...>
+
+## 16. Change Log & Decision Log
+- История изменений: <...>
+- Ключевые решения: <...>
+
+## 17. Federation & Knowledge Sharing
+- Экспорт/импорт: <...>
+
+## 18. Чек-лист полноты
+- [ ] ...
+
+> AI: Все разделы автоматически проверяются на полноту, связность, актуальность. После генерации — инициировать AI-ревью, экспорт, снапшот.
+"""
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'projectBrief.md сгенерирован по расширенному шаблону: {out_path}')
+
 def main():
-    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap")
+    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec")
     subparsers = parser.add_subparsers(dest="command")
 
     p_summary = subparsers.add_parser("summary", help="Сгенерировать summary по задаче или всем задачам")
@@ -78,6 +180,14 @@ def main():
     p_roadmap = subparsers.add_parser("roadmap", help="Сгенерировать Gantt-диаграмму roadmap по задачам")
     p_roadmap.add_argument("--out", help="Путь для сохранения диаграммы")
     p_roadmap.set_defaults(func=cmd_roadmap)
+
+    p_generate = subparsers.add_parser("generate-spec", help="Сгенерировать projectBrief.md по расширенному шаблону")
+    p_generate.add_argument("--type", help="Тип проекта (landing, app, saas и т.д.)")
+    p_generate.add_argument("--audience", help="Сегменты аудитории через запятую")
+    p_generate.add_argument("--problems", help="Количество проблем (по умолчанию 100)")
+    p_generate.add_argument("--name", help="Название проекта")
+    p_generate.add_argument("--out", help="Путь для сохранения projectBrief.md")
+    p_generate.set_defaults(func=cmd_generate_spec)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
