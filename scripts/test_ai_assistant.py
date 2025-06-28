@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, mock_open, MagicMock
 import os
 import scripts.ai_assistant as ai
+from scripts import ai_utils
 
 class TestAIAssistant(unittest.TestCase):
     @patch('requests.post')
@@ -38,6 +39,35 @@ class TestAIAssistant(unittest.TestCase):
         # Эмулируем наличие ошибки в auditLog.md и согласие на откат
         ai.analyze_audit_log()
         mock_rollback.assert_called_once_with("snapshot-X")
+
+    def test_generate_task_summary(self):
+        task = {"id": "1", "title": "Test", "status": "In Progress", "epic": "Epic1", "business_goal": "Goal1", "description": "Desc"}
+        summary = ai_utils.generate_task_summary(task)
+        self.assertIn("Summary for Task 1", summary)
+        self.assertIn("Epic1", summary)
+        self.assertIn("Goal1", summary)
+
+    def test_analyze_task_links(self):
+        tasks = [
+            {"id": "1", "epic": "E1", "business_goal": "B1"},
+            {"id": "2", "epic": "", "business_goal": "B2"},
+            {"id": "3", "epic": "E3", "business_goal": ""}
+        ]
+        missing = ai_utils.analyze_task_links(tasks)
+        self.assertIn("2", missing)
+        self.assertIn("3", missing)
+        self.assertNotIn("1", missing)
+
+    @patch("builtins.open", new_callable=mock_open)
+    def test_generate_mermaid_diagram(self, mock_file):
+        data = [("T1", "E1", "B1")]
+        ai_utils.generate_mermaid_diagram("task_links", data, "out.mmd")
+        mock_file.assert_called_with("out.mmd", "w", encoding="utf-8")
+
+    @patch("builtins.open", new_callable=mock_open)
+    def test_log_action(self, mock_file):
+        ai_utils.log_action("Test log", level="ERROR")
+        self.assertTrue(mock_file.called)
 
 if __name__ == "__main__":
     unittest.main() 
