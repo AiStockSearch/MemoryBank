@@ -996,11 +996,27 @@ class DocUpdateInput:
     type: Optional[str] = None
     content: Optional[str] = None
 
+@strawberry.input
+class RuleUpdateInput:
+    type: Optional[str] = None
+    value: Optional[str] = None
+    description: Optional[str] = None
+
+@strawberry.input
+class TemplateUpdateInput:
+    name: Optional[str] = None
+    repo_url: Optional[str] = None
+    tags: Optional[List[str]] = None
+
 # Подписчики для обновлений/удалений
 updated_task_subscribers = set()
 deleted_task_subscribers = set()
 updated_doc_subscribers = set()
 deleted_doc_subscribers = set()
+updated_rule_subscribers = set()
+deleted_rule_subscribers = set()
+updated_template_subscribers = set()
+deleted_template_subscribers = set()
 
 @strawberry.type
 class Mutation:
@@ -1088,6 +1104,66 @@ class Mutation:
             await queue.put(id)
         return True
 
+    @strawberry.mutation
+    async def update_rule(self, id: str, input: RuleUpdateInput) -> RuleType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM cursor_rules WHERE id = $1', id)
+            if not row:
+                raise Exception("Rule not found")
+            data = dict(row)
+            for k, v in input.__dict__.items():
+                if v is not None:
+                    data[k] = v
+            await conn.execute('''UPDATE cursor_rules SET type=$1, value=$2, description=$3 WHERE id=$4''',
+                data.get('type'), data.get('value'), data.get('description'), id)
+        rule = RuleType(**data)
+        for queue in updated_rule_subscribers:
+            await queue.put(rule)
+        return rule
+
+    @strawberry.mutation
+    async def delete_rule(self, id: str) -> bool:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM cursor_rules WHERE id = $1', id)
+            if not row:
+                return False
+            await conn.execute('DELETE FROM cursor_rules WHERE id = $1', id)
+        for queue in deleted_rule_subscribers:
+            await queue.put(id)
+        return True
+
+    @strawberry.mutation
+    async def update_template(self, id: int, input: TemplateUpdateInput) -> TemplateType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM templates WHERE id = $1', id)
+            if not row:
+                raise Exception("Template not found")
+            data = dict(row)
+            for k, v in input.__dict__.items():
+                if v is not None:
+                    data[k] = v
+            await conn.execute('''UPDATE templates SET name=$1, repo_url=$2, tags=$3 WHERE id=$4''',
+                data.get('name'), data.get('repo_url'), data.get('tags'), id)
+        tpl = TemplateType(**data)
+        for queue in updated_template_subscribers:
+            await queue.put(tpl)
+        return tpl
+
+    @strawberry.mutation
+    async def delete_template(self, id: int) -> bool:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM templates WHERE id = $1', id)
+            if not row:
+                return False
+            await conn.execute('DELETE FROM templates WHERE id = $1', id)
+        for queue in deleted_template_subscribers:
+            await queue.put(id)
+        return True
+
 @strawberry.type
 class Subscription:
     @strawberry.subscription
@@ -1144,6 +1220,50 @@ class Subscription:
                 yield doc_id
         finally:
             deleted_doc_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def rule_updated(self, info) -> RuleType:
+        queue = asyncio.Queue()
+        updated_rule_subscribers.add(queue)
+        try:
+            while True:
+                rule = await queue.get()
+                yield rule
+        finally:
+            updated_rule_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def rule_deleted(self, info) -> str:
+        queue = asyncio.Queue()
+        deleted_rule_subscribers.add(queue)
+        try:
+            while True:
+                rule_id = await queue.get()
+                yield rule_id
+        finally:
+            deleted_rule_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def template_updated(self, info) -> TemplateType:
+        queue = asyncio.Queue()
+        updated_template_subscribers.add(queue)
+        try:
+            while True:
+                tpl = await queue.get()
+                yield tpl
+        finally:
+            updated_template_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def template_deleted(self, info) -> int:
+        queue = asyncio.Queue()
+        deleted_template_subscribers.add(queue)
+        try:
+            while True:
+                tpl_id = await queue.get()
+                yield tpl_id
+        finally:
+            deleted_template_subscribers.remove(queue)
 
 schema = strawberry.Schema(Query, Mutation, Subscription)
 app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql") 
