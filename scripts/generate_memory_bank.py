@@ -1,5 +1,6 @@
 import os
 import argparse
+import datetime
 
 TEMPLATES = {
     'backend': [
@@ -17,6 +18,16 @@ TEMPLATES = {
         ('03-development-process.md', '# Development Process\n[Workflow, code style, deployment]\n'),
         ('04-api-integration.md', '# API Integration\n[How frontend interacts with backend APIs]\n'),
         ('05-progress-log.md', '# Progress Log\n[Chronological record of major changes and implementations]\n'),
+    ],
+    'tasks': [
+        ('business/business-tasks.md', '# Business Tasks\n\n## 1. Бизнес-цель\n- Описание: <...>\n- Value: <...>\n- Критерии успеха: <...>\n- Ответственный: <...>\n- Связанные эпики/проекты: <...>\n\n## 2. Декомпозиция по сервисам/фичам\n| Сервис/Фича | Задача | Статус | Ответственный | Ссылка на фичу |\n|-------------|--------|--------|---------------|----------------|\n| Service A   | ...    | ...    | ...           | ...            |\n'),
+        ('business/epic-example.md', '# Epic: <Название эпика>\n\n## 1. Описание\n- ...\n\n## 2. Бизнес-процесс\n- ...\n\n## 3. Итоговый отчёт\n- ...\n'),
+        ('business/process-example.md', '# Process: <Название процесса>\n\n## 1. Описание процесса\n- ...\n\n## 2. Влияние на бизнес\n- ...\n'),
+        ('tasks/feature-example.mdf', '# Feature: <Название фичи>\n\n## 1. Описание\n- <Краткое описание фичи>\n\n## 2. Связь с бизнес-целью\n- <Ссылка на бизнесовую задачу/эпик>\n\n## 3. Что реализовано\n- <Список реализованных изменений>\n\n## 4. На что повлияло\n- <Описание влияния на продукт/бизнес-процесс>\n\n## 5. Ссылки\n- Бизнес-процесс/эпик: <ссылка>\n- Pull Request/коммит: <ссылка>\n'),
+        ('tasks/implement-tasks.md', '# Implement Tasks\n\n## 1. Техническая задача\n- Описание: <...>\n- Сервис/Модуль: <...>\n- Связь с бизнес-целью: <ссылка>\n- Статус: Plan/Implement/Done\n- Ответственный: <...>\n- Дата создания: <...>\n- Дата завершения: <...>\n- Примечания: <...>\n'),
+        ('tasks/creative-tasks.md', '# Creative Tasks\n\n## 1. Идея/Альтернатива\n- Описание: <...>\n- Автор/AI: <...>\n- Связанные задачи: <...>\n- Оценка (голосование/AI): <...>\n- Решение: Принято/Отклонено/В доработку\n'),
+        ('tasks/reflection-tasks.md', '# Reflection / Archive\n\n## 1. Итоги реализации\n- Что удалось: <...>\n- Проблемы: <...>\n- Новые инсайты: <...>\n- Рекомендации: <...>\n- Новые задачи/планы: <...>\n'),
+        ('context.md', '```mermaid\nflowchart TD\n    BZ[Бизнесовая задача<br/>(business-tasks.md)] -->|Декомпозиция| PLAN[Планирование<br/>(plan-tasks.md)]\n    PLAN -->|Если нужен креатив| CREATIVE[Креатив<br/>(creative-tasks.md)]\n    CREATIVE --> PLAN\n    PLAN -->|Готово к реализации| IMPLEMENT[Реализация<br/>(implement-tasks.md)]\n    IMPLEMENT --> REFLECT[Ретроспектива/Архив<br/>(reflection-tasks.md)]\n    REFLECT -->|Новые инсайты| PLAN\n    PLAN -->|Если не нужен креатив| IMPLEMENT\n    BZ -->|Иногда напрямую| PLAN\n```\n'),
     ]
 }
 
@@ -29,9 +40,15 @@ alwaysApply: true
 '''
 
 def generate_memory_bank(path, template):
-    os.makedirs(os.path.join(path, 'memory-bank/notes'), exist_ok=True)
+    if template == 'tasks':
+        os.makedirs(os.path.join(path, 'memory-bank/business'), exist_ok=True)
+        os.makedirs(os.path.join(path, 'memory-bank/tasks'), exist_ok=True)
+    else:
+        os.makedirs(os.path.join(path, 'memory-bank/notes'), exist_ok=True)
     for fname, content in TEMPLATES[template]:
-        with open(os.path.join(path, 'memory-bank', fname), 'w') as f:
+        out_path = os.path.join(path, 'memory-bank', fname)
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, 'w') as f:
             f.write(content)
     # Создать базовое MDC-правило
     os.makedirs(os.path.join(path, '.cursor/rules'), exist_ok=True)
@@ -39,9 +56,46 @@ def generate_memory_bank(path, template):
         f.write(MDC_RULE)
     print(f'Memory Bank ({template}) создан в {path}')
 
+def create_feature_file(path, feature_name, business_link=None, author=None):
+    fname = f'feature-{feature_name}.mdf'
+    out_path = os.path.join(path, 'memory-bank/tasks', fname)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    today = datetime.date.today().isoformat()
+    content = f'''# Feature: {feature_name}
+
+## 1. Описание
+- <Краткое описание фичи>
+
+## 2. Связь с бизнес-целью
+- {business_link or '<ссылка на бизнесовую задачу/эпик>'}
+
+## 3. Что реализовано
+- <Список реализованных изменений>
+
+## 4. На что повлияло
+- <Описание влияния на продукт/бизнес-процесс>
+
+## 5. Ссылки
+- Бизнес-процесс/эпик: {business_link or '<ссылка>'}
+- Pull Request/коммит: <ссылка>
+
+---
+Дата создания: {today}
+Автор: {author or '<автор>'}
+'''
+    with open(out_path, 'w') as f:
+        f.write(content)
+    print(f'Feature-файл создан: {out_path}')
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--template', choices=TEMPLATES.keys(), required=True)
+    parser.add_argument('--template', choices=TEMPLATES.keys())
     parser.add_argument('--project-path', default='.')
+    parser.add_argument('--create-feature', help='Создать feature-<название>.mdf')
+    parser.add_argument('--business-link', help='Ссылка на бизнесовую задачу/эпик')
+    parser.add_argument('--author', help='Автор фичи')
     args = parser.parse_args()
-    generate_memory_bank(args.project_path, args.template) 
+    if args.create_feature:
+        create_feature_file(args.project_path, args.create_feature, args.business_link, args.author)
+    elif args.template:
+        generate_memory_bank(args.project_path, args.template) 
