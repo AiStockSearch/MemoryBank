@@ -1273,13 +1273,21 @@ class Mutation:
 
     @strawberry.mutation
     async def rollback_rule(self, id: str, commit: str, user_id: str) -> 'RollbackResult':
-        import subprocess, os
+        import subprocess, os, datetime
         path = os.path.join('rules', f'{id}.json')
         if not os.path.exists(path):
             return RollbackResult(status="error", rule_id=id, commit=commit, error="Правило не найдено")
         result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
         if result.returncode != 0:
             msg = f"Конфликт при откате правила {id} пользователем {user_id}: {result.stderr}"
+            await notify_conflict({
+                "event": "conflict",
+                "entity": "rule",
+                "id": id,
+                "details": msg,
+                "initiator": user_id,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            })
             notify_mac("MCP: Конфликт", msg)
             return RollbackResult(status="conflict", rule_id=id, commit=commit, error=result.stderr)
         msg = f"[rule] [rollback] {id} {user_id}: rollback to {commit}"
@@ -1289,13 +1297,21 @@ class Mutation:
 
     @strawberry.mutation
     async def rollback_template(self, name: str, commit: str, user_id: str) -> RollbackResult:
-        import subprocess, os
+        import subprocess, os, datetime
         path = os.path.join('templates', f'{name}.json')
         if not os.path.exists(path):
             return RollbackResult(status="error", rule_id=name, commit=commit, error="Шаблон не найден")
         result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
         if result.returncode != 0:
             msg = f"Конфликт при откате шаблона {name} пользователем {user_id}: {result.stderr}"
+            await notify_conflict({
+                "event": "conflict",
+                "entity": "template",
+                "id": name,
+                "details": msg,
+                "initiator": user_id,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            })
             notify_mac("MCP: Конфликт", msg)
             return RollbackResult(status="conflict", rule_id=name, commit=commit, error=result.stderr)
         msg = f"[template] [rollback] {name} {user_id}: rollback to {commit}"
@@ -1437,6 +1453,29 @@ async def notify_conflict(event: dict):
         await queue.put(event)
     # Также отправляем push-нотификацию на Mac
     notify_mac("MCP: Конфликт", event.get("details", str(event)))
+
+@strawberry.type
+class ConflictEvent:
+    event: str
+    entity: str
+    id: str
+    details: str
+    initiator: str
+    timestamp: str
+
+@strawberry.type
+class Subscription(Subscription):
+    @strawberry.subscription
+    async def conflict_notification(self, info) -> ConflictEvent:
+        queue = asyncio.Queue()
+        conflict_subscribers.add(queue)
+        try:
+            while True:
+                event = await queue.get()
+                yield ConflictEvent(**event)
+        finally:
+            conflict_subscribers.remove(queue)
+
 schema = strawberry.Schema(Query, Mutation, Subscription)
 app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql")
 
