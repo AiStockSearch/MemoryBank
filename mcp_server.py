@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header
 from pydantic import BaseModel
 from cacd import CACD
-from typing import Optional, List
+from typing import Optional, List, Any
 import json
 from fastapi.responses import HTMLResponse, StreamingResponse
 import logging
@@ -16,6 +16,8 @@ import subprocess
 import glob
 import hashlib
 import boto3
+import numpy as np
+from sklearn.cluster import KMeans
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -696,4 +698,109 @@ async def rollback_file(project_id: int, file_path: str, version: int, user_id: 
         new_version = (vrow['v'] or 0) + 1
         await conn.execute('''INSERT INTO file_versions (project_id, file_path, version, hash, user_id, s3_url) VALUES ($1, $2, $3, $4, $5, $6)''',
             project_id, file_path, new_version, row['hash'], user_id, row['s3_url'])
-    return {"status": "rolled_back", "file": file_path, "version": version} 
+    return {"status": "rolled_back", "file": file_path, "version": version}
+
+@app.post('/embeddings/add', dependencies=[Depends(verify_api_key)])
+async def add_embedding(
+    project_id: int,
+    entity_id: str,
+    entity_type: str,  # 'task' | 'doc' | 'template'
+    vector: list[float],
+    model: str,
+    description: str = '',
+    user_id: str = Header(None, alias="X-USER-ID")
+):
+    # Проверка размерности (пример: 384)
+    if len(vector) not in (384, 768, 1024):
+        raise HTTPException(status_code=400, detail="Неподдерживаемая размерность эмбеддинга")
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            '''INSERT INTO embeddings (project_id, task_id, vector, description) VALUES ($1, $2, $3, $4)''',
+            project_id, entity_id, vector, description
+        )
+    return {"status": "embedding_added", "entity_id": entity_id, "type": entity_type, "model": model}
+
+@app.post('/embeddings/search', dependencies=[Depends(verify_api_key)])
+async def search_embeddings(
+    project_id: int,
+    vector: list[float] = None,
+    entity_type: str = None,
+    entity_id: str = None,
+    top_k: int = 5
+) -> list[Any]:
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        # Если передан entity_id — ищем его вектор
+        if entity_id:
+            row = await conn.fetchrow('SELECT vector FROM embeddings WHERE project_id = $1 AND task_id = $2', project_id, entity_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Эмбеддинг не найден")
+            vector = row['vector']
+        if not vector:
+            raise HTTPException(status_code=400, detail="Не передан вектор для поиска")
+        # Поиск по pgvector (cosine distance)
+        query = 'SELECT task_id, vector, description FROM embeddings WHERE project_id = $1'
+        params = [project_id]
+        if entity_type:
+            query += ' AND description LIKE $2'
+            params.append(f'%{entity_type}%')
+        query += ' ORDER BY vector <#> $' + str(len(params)+1) + ' LIMIT $' + str(len(params)+2)
+        params.append(vector)
+        params.append(top_k)
+        rows = await conn.fetch(query, *params)
+        return [{"entity_id": r["task_id"], "vector": r["vector"], "description": r["description"]} for r in rows]
+
+@app.post('/embeddings/cluster', dependencies=[Depends(verify_api_key)])
+async def cluster_embeddings(
+    project_id: int,
+    entity_type: str = None,
+    n_clusters: int = 5
+):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        query = 'SELECT task_id, vector, description FROM embeddings WHERE project_id = $1'
+        params = [project_id]
+        if entity_type:
+            query += ' AND description LIKE $2'
+            params.append(f'%{entity_type}%')
+        rows = await conn.fetch(query, *params)
+        if not rows or len(rows) < n_clusters:
+            raise HTTPException(status_code=400, detail="Недостаточно эмбеддингов для кластеризации")
+        X = np.array([r['vector'] for r in rows])
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(X)
+        clusters = {}
+        for idx, r in enumerate(rows):
+            l = int(labels[idx])
+            clusters.setdefault(l, []).append({"entity_id": r["task_id"], "description": r["description"]})
+        return {"clusters": clusters, "centroids": kmeans.cluster_centers_.tolist()}
+
+@app.post('/embeddings/recommend', dependencies=[Depends(verify_api_key)])
+async def recommend_embeddings(
+    project_id: int,
+    entity_id: str = None,
+    vector: list[float] = None,
+    entity_type: str = None,
+    top_k: int = 5
+):
+    # Использует /embeddings/search для поиска похожих, но фильтрует по entity_type
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        if entity_id:
+            row = await conn.fetchrow('SELECT vector FROM embeddings WHERE project_id = $1 AND task_id = $2', project_id, entity_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Эмбеддинг не найден")
+            vector = row['vector']
+        if not vector:
+            raise HTTPException(status_code=400, detail="Не передан вектор для рекомендации")
+        query = 'SELECT task_id, vector, description FROM embeddings WHERE project_id = $1'
+        params = [project_id]
+        if entity_type:
+            query += ' AND description LIKE $2'
+            params.append(f'%{entity_type}%')
+        query += ' ORDER BY vector <#> $' + str(len(params)+1) + ' LIMIT $' + str(len(params)+2)
+        params.append(vector)
+        params.append(top_k)
+        rows = await conn.fetch(query, *params)
+        return [{"entity_id": r["task_id"], "description": r["description"]} for r in rows] 
