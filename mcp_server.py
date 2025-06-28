@@ -29,6 +29,8 @@ from cursor_rules.fs_rules import list_rules, create_rule, update_rule, delete_r
 from cursor_rules.mdc_parser import validate_mdc
 import base64
 import httpx
+import sys
+import importlib.util
 
 # Импортируем генератор memory-bank
 from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES
@@ -1959,16 +1961,21 @@ async def rule_rollback(
 
 @app.post('/memory-bank/generate', dependencies=[Depends(verify_api_key)])
 async def generate_memory_bank_endpoint(
-    template: str = Body(..., embed=True),
     project_path: str = Body('.', embed=True),
     clean: bool = Body(False, embed=True)
 ):
-    if template not in TEMPLATES:
-        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"error": "Unknown template"})
     mb_path = os.path.join(project_path, 'memory-bank')
     cursor_rules_path = os.path.join(project_path, '.cursor/rules')
     if clean:
         shutil.rmtree(mb_path, ignore_errors=True)
         shutil.rmtree(cursor_rules_path, ignore_errors=True)
-    generate_memory_bank(project_path, template)
-    return {"status": "ok", "template": template, "path": project_path}
+    # Динамически импортируем и запускаем memory-bank/generator.py
+    generator_path = os.path.join(project_path, 'memory-bank', 'generator.py')
+    if not os.path.exists(generator_path):
+        generator_path = os.path.join('memory-bank', 'generator.py')
+    spec = importlib.util.spec_from_file_location('memory_bank_generator', generator_path)
+    mb_gen = importlib.util.module_from_spec(spec)
+    sys.modules['memory_bank_generator'] = mb_gen
+    spec.loader.exec_module(mb_gen)
+    mb_gen.main()
+    return {"status": "ok", "path": project_path, "generator": "memory-bank/generator.py"}
