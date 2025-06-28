@@ -17,3 +17,14 @@
 
 ## Isolation
 - Применение isolation rules для контроля доступа и операций 
+
+## Шаблон паттерна
+
+### Описание
+(Описание паттерна)
+
+### Связанные решения
+- [Решение: Миграция на микросервисы](../decisionLog.md#миграция-на-микросервисы)
+
+### Связанные knowledge packages
+- [Epic Integration Social Content](../knowledge_packages/epic-integration-social-content.md) 

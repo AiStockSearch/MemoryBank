@@ -7,4 +7,16 @@ Memory Bank не является таск-трекером. Все задачи
 
 - [2025-06-19] Решение: ...
   Автор: ...
-  Обоснование: ... 
+  Обоснование: ...
+
+## Шаблон решения
+
+### Описание
+(Краткое описание решения)
+
+### AI-summary
+(Автоматически сгенерированное AI-резюме: плюсы, минусы, риски, влияние на проект)
+
+### Связанные элементы
+- [Паттерн: Circuit Breaker](../systemPatterns.md#circuit-breaker)
+- [Knowledge Package: Epic Integration Social Content](../knowledge_packages/epic-integration-social-content.md) 
