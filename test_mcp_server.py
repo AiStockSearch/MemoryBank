@@ -4,6 +4,7 @@ from mcp_server import app, API_KEY
 import io
 import zipfile
 import tempfile
+from subprocess import check_output
 
 client = TestClient(app)
 
@@ -69,4 +70,60 @@ def test_export_import_merge():
         merged = resp4.json()
         assert merged["status"] == "merged"
         # После merge ничего не добавлено
-        assert all(v == 0 for v in merged["added"].values() if isinstance(v, int)) 
+        assert all(v == 0 for v in merged["added"].values() if isinstance(v, int))
+
+def test_batch_commit_rules(client):
+    rules = [
+        {"id": "ruleA", "type": "priority", "value": "high"},
+        {"id": "ruleB", "type": "deadline", "value": "2025-01-01"}
+    ]
+    resp = client.post("/rules", json={"rules": rules}, headers={"X-USER-ID": "tester"})
+    assert resp.status_code == 200
+    # Проверяем, что оба файла созданы и есть в git log одним коммитом
+    logA = check_output(["git", "log", "--oneline", "--", "rules/ruleA.json"]).decode()
+    logB = check_output(["git", "log", "--oneline", "--", "rules/ruleB.json"]).decode()
+    assert "batch-update" in logA.splitlines()[0]
+    assert logA.splitlines()[0] == logB.splitlines()[0]
+
+def test_batch_commit_templates(client):
+    templates = [
+        {"name": "tplA", "repo_url": "https://repo/a", "tags": ["a"]},
+        {"name": "tplB", "repo_url": "https://repo/b", "tags": ["b"]}
+    ]
+    resp = client.post("/templates", json=templates, headers={"X-USER-ID": "tester"})
+    assert resp.status_code == 200
+    logA = check_output(["git", "log", "--oneline", "--", "templates/tplA.json"]).decode()
+    logB = check_output(["git", "log", "--oneline", "--", "templates/tplB.json"]).decode()
+    assert "batch-update" in logA.splitlines()[0]
+    assert logA.splitlines()[0] == logB.splitlines()[0]
+
+def test_rollback_rule(client):
+    # Создаём правило, обновляем, откатываем
+    rule = {"id": "ruleRollback", "type": "priority", "value": "low"}
+    client.post("/rules", json={"rules": [rule]}, headers={"X-USER-ID": "tester"})
+    rule2 = {"id": "ruleRollback", "type": "priority", "value": "high"}
+    client.post("/rules", json={"rules": [rule2]}, headers={"X-USER-ID": "tester"})
+    log = check_output(["git", "log", "--oneline", "--", "rules/ruleRollback.json"]).decode().splitlines()
+    commit_hash = log[1].split()[0]  # первый коммит (до обновления)
+    resp = client.post(f"/rules/ruleRollback/rollback", data={"commit": commit_hash}, headers={"X-USER-ID": "tester"})
+    assert resp.status_code == 200
+    # Проверяем, что rollback зафиксирован в истории
+    log2 = check_output(["git", "log", "--oneline", "--", "rules/ruleRollback.json"]).decode()
+    assert "rollback" in log2.splitlines()[0]
+
+def test_conflict_on_rollback(client):
+    # Создаём правило, обновляем, ещё раз обновляем
+    rule = {"id": "ruleConflict", "type": "priority", "value": "low"}
+    client.post("/rules", json={"rules": [rule]}, headers={"X-USER-ID": "tester"})
+    rule2 = {"id": "ruleConflict", "type": "priority", "value": "high"}
+    client.post("/rules", json={"rules": [rule2]}, headers={"X-USER-ID": "tester"})
+    rule3 = {"id": "ruleConflict", "type": "priority", "value": "medium"}
+    client.post("/rules", json={"rules": [rule3]}, headers={"X-USER-ID": "tester"})
+    log = check_output(["git", "log", "--oneline", "--", "rules/ruleConflict.json"]).decode().splitlines()
+    commit_hash = log[2].split()[0]  # первый коммит
+    # Откатываем к первому коммиту
+    resp = client.post(f"/rules/ruleConflict/rollback", data={"commit": commit_hash}, headers={"X-USER-ID": "tester"})
+    assert resp.status_code == 200
+    # Проверяем, что rollback зафиксирован
+    log2 = check_output(["git", "log", "--oneline", "--", "rules/ruleConflict.json"]).decode()
+    assert "rollback" in log2.splitlines()[0] 

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header
+from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body
 from pydantic import BaseModel
 from cacd import CACD
 from typing import Optional, List, Any
@@ -134,8 +134,11 @@ async def get_context(task_id: str):
 @app.post('/rules', dependencies=[Depends(verify_api_key)])
 async def update_rules(req: RuleRequest, user_id: str = Header(None, alias="X-USER-ID")):
     logger.info("Обновление правил")
-    for rule in req.rules:
-        save_and_commit_rule(rule.get('id'), rule, 'update', user_id or 'system', 'bulk update')
+    if len(req.rules) > 1:
+        batch_save_and_commit(req.rules, 'rule', 'update', user_id or 'system', 'bulk update')
+    else:
+        for rule in req.rules:
+            save_and_commit_rule(rule.get('id'), rule, 'update', user_id or 'system', 'bulk update')
     with open(cacd.rules_path, 'w') as f:
         json.dump(req.rules, f, indent=2)
     cacd._load_rules()
@@ -909,6 +912,16 @@ async def update_global_templates(templates: list, user_id: str = Header(None, a
         )
     return {"status": "global_templates_updated"}
 
+@app.post('/templates', dependencies=[Depends(verify_api_key)])
+async def update_templates(templates: list = Body(...), user_id: str = Header(None, alias="X-USER-ID")):
+    logger.info("Обновление шаблонов")
+    if len(templates) > 1:
+        batch_save_and_commit(templates, 'template', 'update', user_id or 'system', 'bulk update')
+    else:
+        for tpl in templates:
+            save_and_commit_template(tpl.get('name'), tpl, 'update', user_id or 'system', 'bulk update')
+    return {"status": "templates updated"}
+
 @strawberry.type
 class ProjectType:
     id: int
@@ -1399,4 +1412,90 @@ async def rollback_rule(rule_id: str, commit: str = Form(...), user_id: str = He
     msg = f"[rule] [rollback] {rule_id} {user_id}: rollback to {commit}"
     subprocess.run(['git', 'add', path], check=False)
     subprocess.run(['git', 'commit', '-m', msg], check=False)
-    return {"status": "rolled back", "rule_id": rule_id, "commit": commit} 
+    return {"status": "rolled back", "rule_id": rule_id, "commit": commit}
+
+def save_and_commit_template(template_id: str, data: dict, action: str, author: str, reason: str = ""):
+    """
+    Сохраняет шаблон в templates/{template_id}.json и делает git commit с подробным описанием.
+    action: create|update|delete
+    author: имя пользователя
+    reason: причина/описание
+    """
+    import json, os
+    path = os.path.join('templates', f'{template_id}.json')
+    if action == 'delete':
+        if os.path.exists(path):
+            os.remove(path)
+    else:
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    subprocess.run(['git', 'add', path], check=False)
+    msg = f"[template] [{action}] {template_id} {author}: {reason}"
+    subprocess.run(['git', 'commit', '-m', msg], check=False)
+
+@app.get('/templates/{template_id}/changelog', dependencies=[Depends(verify_api_key)])
+async def get_template_changelog(template_id: str):
+    import subprocess, os
+    path = os.path.join('templates', f'{template_id}.json')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Шаблон не найден")
+    result = subprocess.run(['git', 'log', '--pretty=format:%h|%an|%ad|%s', '--date=iso', '--', path], capture_output=True, text=True)
+    log = []
+    for line in result.stdout.strip().split('\n'):
+        if line:
+            parts = line.split('|', 3)
+            if len(parts) == 4:
+                log.append({
+                    'commit': parts[0],
+                    'author': parts[1],
+                    'date': parts[2],
+                    'message': parts[3]
+                })
+    return log
+
+@app.post('/templates/{template_id}/rollback', dependencies=[Depends(verify_api_key)])
+async def rollback_template(template_id: str, commit: str = Form(...), user_id: str = Header(None, alias="X-USER-ID")):
+    import subprocess, os
+    path = os.path.join('templates', f'{template_id}.json')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Шаблон не найден")
+    # Откат файла к выбранному коммиту
+    result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+    if result.returncode != 0:
+        msg = f"Конфликт при откате шаблона {template_id} пользователем {user_id}: {result.stderr}"
+        notify_mac("MCP: Конфликт", msg)
+        raise HTTPException(status_code=400, detail=f"Ошибка git checkout: {result.stderr}")
+    # Новый коммит с пометкой rollback
+    msg = f"[template] [rollback] {template_id} {user_id}: rollback to {commit}"
+    subprocess.run(['git', 'add', path], check=False)
+    subprocess.run(['git', 'commit', '-m', msg], check=False)
+    return {"status": "rolled back", "template_id": template_id, "commit": commit}
+
+def batch_save_and_commit(items: list, item_type: str, action: str, author: str, reason: str = ""):
+    """
+    Массовое сохранение и git-коммит для правил или шаблонов.
+    item_type: 'rule' или 'template'
+    action: create|update|delete
+    author: имя пользователя
+    reason: причина/описание
+    """
+    import json, os, subprocess
+    paths = []
+    for item in items:
+        item_id = item.get('id') or item.get('name')
+        if item_type == 'rule':
+            path = os.path.join('rules', f'{item_id}.json')
+        else:
+            path = os.path.join('templates', f'{item_id}.json')
+        if action == 'delete':
+            if os.path.exists(path):
+                os.remove(path)
+        else:
+            with open(path, 'w') as f:
+                json.dump(item, f, indent=2, ensure_ascii=False)
+        paths.append(path)
+    if paths:
+        subprocess.run(['git', 'add'] + paths, check=False)
+        ids = ', '.join([item.get('id') or item.get('name') for item in items])
+        msg = f"[{item_type}][batch-{action}] {ids} {author}: {reason}"
+        subprocess.run(['git', 'commit', '-m', msg], check=False) 
