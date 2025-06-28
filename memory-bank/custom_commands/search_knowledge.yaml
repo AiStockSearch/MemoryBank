@@ -1,0 +1,7 @@
+name: search_knowledge
+description: Поиск по содержимому knowledge packages
+parameters:
+  - name: keyword
+    type: string
+    required: true
+action: search_knowledge_action 

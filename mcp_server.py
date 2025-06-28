@@ -581,6 +581,63 @@ async def complete_epic(
         print(f"Ошибка создания снапшота после завершения Epic: {e}")
     # ... остальной код ...
 
+def echo_action(params):
+    return {"echo": params["msg"]}
+
+def archive_knowledge_package_action(params):
+    import shutil, os
+    src = os.path.join('memory-bank', 'knowledge_packages', params['file'])
+    dst = os.path.join('memory-bank', 'archive', params['file'])
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.move(src, dst)
+    return {'archived': params['file']}
+
+def search_knowledge_action(params):
+    import os
+    results = []
+    for fname in os.listdir('memory-bank/knowledge_packages'):
+        path = os.path.join('memory-bank/knowledge_packages', fname)
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            if params['keyword'] in f.read():
+                results.append(fname)
+    return {'found': results}
+
+def batch_update_status_action(params):
+    import os
+    updated = []
+    for fname in params['files']:
+        path = os.path.join('memory-bank/tasks', fname)
+        if os.path.exists(path):
+            with open(path, 'r+') as f:
+                content = f.read()
+                if 'Статус:' in content:
+                    # Примитивная замена статуса
+                    import re
+                    content = re.sub(r'Статус:.*', f'Статус: {params["status"]}', content)
+                else:
+                    content += f'\nСтатус: {params["status"]}\n'
+                f.seek(0)
+                f.write(content)
+                f.truncate()
+            updated.append(fname)
+    return {'updated': updated}
+
+def generate_report_action(params):
+    import os
+    report = []
+    for fname in os.listdir('memory-bank/knowledge_packages'):
+        report.append(f'Knowledge: {fname}')
+    return {'report': report}
+
+CUSTOM_COMMAND_ACTIONS = {
+    'echo_action': echo_action,
+    'archive_knowledge_package_action': archive_knowledge_package_action,
+    'search_knowledge_action': search_knowledge_action,
+    'batch_update_status_action': batch_update_status_action,
+    'generate_report_action': generate_report_action,
+    # Здесь можно регистрировать другие action-функции
+}
+
 @app.post('/custom_command/{command_name}')
 async def run_custom_command(command_name: str, request: Request):
     params = await request.json()
@@ -589,14 +646,17 @@ async def run_custom_command(command_name: str, request: Request):
         raise HTTPException(status_code=404, detail=f'Custom command {command_name} not found')
     with open(cmd_path, 'r') as f:
         cmd = yaml.safe_load(f)
-    # Здесь можно реализовать исполнение action (например, mapping на Python-функции)
-    # Пока просто возвращаем описание и action как заглушку
+    action_name = cmd.get('action')
+    result = None
+    if action_name and action_name in CUSTOM_COMMAND_ACTIONS:
+        result = CUSTOM_COMMAND_ACTIONS[action_name](params)
     return {
         'status': 'ok',
         'command': command_name,
         'description': cmd.get('description'),
         'parameters': params,
-        'action': cmd.get('action')
+        'action': action_name,
+        'result': result
     }
 
 @app.post('/memory-bank/import')
@@ -689,6 +749,40 @@ async def federation_pull_knowledge(file: str):
 async def federation_push_knowledge(file: UploadFile = File(...)):
     import os
     path = os.path.join('memory-bank', 'knowledge_packages', file.filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as out_f:
+        out_f.write(await file.read())
+    return {'status': 'uploaded', 'file': file.filename}
+
+@app.get('/memory-bank/federation/pull_command')
+async def federation_pull_command(file: str):
+    import os
+    path = os.path.join('memory-bank', 'custom_commands', file)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='Custom command not found')
+    return FileResponse(path, filename=file)
+
+@app.post('/memory-bank/federation/push_command')
+async def federation_push_command(file: UploadFile = File(...)):
+    import os
+    path = os.path.join('memory-bank', 'custom_commands', file.filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as out_f:
+        out_f.write(await file.read())
+    return {'status': 'uploaded', 'file': file.filename}
+
+@app.get('/memory-bank/federation/pull_template')
+async def federation_pull_template(file: str):
+    import os
+    path = os.path.join('memory-bank', 'templates', file)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='Template not found')
+    return FileResponse(path, filename=file)
+
+@app.post('/memory-bank/federation/push_template')
+async def federation_push_template(file: UploadFile = File(...)):
+    import os
+    path = os.path.join('memory-bank', 'templates', file.filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as out_f:
         out_f.write(await file.read())

@@ -7,6 +7,7 @@ import tempfile
 from subprocess import check_output
 import os
 import base64
+import yaml
 
 client = TestClient(app)
 
@@ -423,4 +424,104 @@ def test_graphql_mdc_rules_crud():
         }
         '''
         resp = gql(mutation, {"path": path, "commit": old_commit, "userId": "tester"})
-        assert resp.status_code == 200 
+        assert resp.status_code == 200
+
+def test_memory_bank_import_export():
+    # Создаём временный архив memory-bank
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write('test123')
+        mem_zip = io.BytesIO()
+        with zipfile.ZipFile(mem_zip, 'w') as zf:
+            zf.write(test_file, 'test.txt')
+        mem_zip.seek(0)
+        # Импорт
+        resp = client.post('/memory-bank/import', files={'file': ('memory-bank.zip', mem_zip, 'application/zip')})
+        assert resp.status_code == 200
+        assert resp.json()['status'] == 'imported'
+        # Экспорт
+        resp2 = client.get('/memory-bank/export')
+        assert resp2.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(resp2.content)) as zf:
+            assert 'test.txt' in zf.namelist()
+
+def test_memory_bank_merge_and_rollback():
+    # Создаём архив с новым файлом
+    with tempfile.TemporaryDirectory() as tmpdir:
+        new_file = os.path.join(tmpdir, 'new.txt')
+        with open(new_file, 'w') as f:
+            f.write('newdata')
+        mem_zip = io.BytesIO()
+        with zipfile.ZipFile(mem_zip, 'w') as zf:
+            zf.write(new_file, 'new.txt')
+        mem_zip.seek(0)
+        # Merge dry-run
+        resp = client.post('/memory-bank/merge', files={'archive': ('merge.zip', mem_zip, 'application/zip')}, data={'dry_run': 'true'})
+        assert resp.status_code == 200
+        assert 'NEW: new.txt' in resp.json()['diff']
+        # Merge реальный
+        mem_zip.seek(0)
+        resp2 = client.post('/memory-bank/merge', files={'archive': ('merge.zip', mem_zip, 'application/zip')}, data={'dry_run': 'false'})
+        assert resp2.status_code == 200
+        assert resp2.json()['status'] == 'merged'
+        # Rollback (откат к этому архиву)
+        mem_zip.seek(0)
+        resp3 = client.post('/memory-bank/rollback', files={'snapshot': ('rollback.zip', mem_zip, 'application/zip')})
+        assert resp3.status_code == 200
+        assert resp3.json()['status'] == 'rolled back'
+
+def test_memory_bank_batch():
+    # Архив с двумя файлами
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f1 = os.path.join(tmpdir, 'a.txt')
+        f2 = os.path.join(tmpdir, 'b.txt')
+        with open(f1, 'w') as f:
+            f.write('A')
+        with open(f2, 'w') as f:
+            f.write('B')
+        mem_zip = io.BytesIO()
+        with zipfile.ZipFile(mem_zip, 'w') as zf:
+            zf.write(f1, 'a.txt')
+            zf.write(f2, 'b.txt')
+        mem_zip.seek(0)
+        resp = client.post('/memory-bank/batch', files={'batch': ('batch.zip', mem_zip, 'application/zip')})
+        assert resp.status_code == 200
+        assert 'a.txt' in resp.json()['files']
+        assert 'b.txt' in resp.json()['files']
+
+def test_memory_bank_federation():
+    # Push knowledge package
+    content = b'knowledge123'
+    resp = client.post('/memory-bank/federation/push', files={'file': ('test-knowledge.md', io.BytesIO(content), 'text/markdown')})
+    assert resp.status_code == 200
+    assert resp.json()['status'] == 'uploaded'
+    # Pull knowledge package
+    resp2 = client.get('/memory-bank/federation/pull', params={'file': 'test-knowledge.md'})
+    assert resp2.status_code == 200
+    assert resp2.content == content
+
+def test_custom_command():
+    assert resp2.content == content
+
+def test_custom_command_action():
+    import yaml
+    # Создаём временный custom command YAML с action: echo_action
+    os.makedirs('memory-bank/custom_commands', exist_ok=True)
+    cmd_yaml = {
+        'name': 'echo',
+        'description': 'Echo test command',
+        'parameters': [{'name': 'msg', 'type': 'string', 'required': True}],
+        'action': 'echo_action'
+    }
+    with open('memory-bank/custom_commands/echo.yaml', 'w') as f:
+        yaml.dump(cmd_yaml, f)
+    params = {'msg': 'hello world'}
+    resp = client.post('/custom_command/echo', json=params)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['command'] == 'echo'
+    assert data['description'] == 'Echo test command'
+    assert data['parameters'] == params
+    assert data['action'] == 'echo_action'
+    assert data['result'] == {'echo': 'hello world'} 

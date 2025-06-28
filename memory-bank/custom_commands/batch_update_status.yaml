@@ -1,0 +1,10 @@
+name: batch_update_status
+description: Массовое обновление статусов задач/фич
+parameters:
+  - name: status
+    type: string
+    required: true
+  - name: files
+    type: list
+    required: true
+action: batch_update_status_action 

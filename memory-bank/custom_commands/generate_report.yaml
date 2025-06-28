@@ -1,0 +1,4 @@
+name: generate_report
+description: Генерирует summary-отчёт по Memory Bank
+parameters: []
+action: generate_report_action 
