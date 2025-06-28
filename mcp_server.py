@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body
+from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body, status
 from pydantic import BaseModel
 from cacd import CACD
 from typing import Optional, List, Any
@@ -29,6 +29,9 @@ from cursor_rules.fs_rules import list_rules, create_rule, update_rule, delete_r
 from cursor_rules.mdc_parser import validate_mdc
 import base64
 import httpx
+
+# Импортируем генератор memory-bank
+from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -1953,3 +1956,19 @@ async def rule_rollback(
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
     return {"status": "rolled back", "path": path, "commit": commit}
+
+@app.post('/memory-bank/generate', dependencies=[Depends(verify_api_key)])
+async def generate_memory_bank_endpoint(
+    template: str = Body(..., embed=True),
+    project_path: str = Body('.', embed=True),
+    clean: bool = Body(False, embed=True)
+):
+    if template not in TEMPLATES:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"error": "Unknown template"})
+    mb_path = os.path.join(project_path, 'memory-bank')
+    cursor_rules_path = os.path.join(project_path, '.cursor/rules')
+    if clean:
+        shutil.rmtree(mb_path, ignore_errors=True)
+        shutil.rmtree(cursor_rules_path, ignore_errors=True)
+    generate_memory_bank(project_path, template)
+    return {"status": "ok", "template": template, "path": project_path}
