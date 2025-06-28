@@ -735,6 +735,31 @@ def audit_templates(args):
     if not (dups or outdated or no_meta):
         print('- Всё в порядке!')
 
+def remind_audit_templates(args):
+    import os
+    import datetime
+    log_path = 'memory-bank/auditLog.md'
+    last_audit = None
+    if os.path.exists(log_path):
+        with open(log_path, 'r', encoding='utf-8') as f:
+            for line in reversed(f.readlines()):
+                if 'audit шаблонов' in line.lower():
+                    try:
+                        date_str = line.split(']')[0].strip('[')
+                        last_audit = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                        break
+                    except Exception:
+                        continue
+    now = datetime.datetime.now()
+    if last_audit:
+        days = (now - last_audit).days
+        if days > 90:
+            print(f'Напоминание: последний аудит шаблонов был {days} дней назад. Проведите аудит!')
+        else:
+            print(f'Последний аудит шаблонов был {days} дней назад. Всё в порядке.')
+    else:
+        print('Напоминание: аудит шаблонов ещё не проводился или не зафиксирован в auditLog.md. Проведите аудит!')
+
 def main():
     parser = argparse.ArgumentParser(description="AI-ассистент и CLI для Memory Bank")
     subparsers = parser.add_subparsers()
@@ -830,6 +855,9 @@ def main():
     parser_audit.add_argument('--project-id', required=True, help='ID проекта')
     parser_audit.add_argument('--archive', action='store_true', help='Проверять архив (по умолчанию — рабочая папка)')
     parser_audit.set_defaults(func=audit_templates)
+
+    parser_remind = subparsers.add_parser('remind-audit-templates', help='Напоминание о необходимости аудита шаблонов (если не было более 90 дней)')
+    parser_remind.set_defaults(func=remind_audit_templates)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
