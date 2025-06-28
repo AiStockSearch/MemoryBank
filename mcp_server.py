@@ -132,8 +132,10 @@ async def get_context(task_id: str):
     return {"task_id": task_id, "context": context}
 
 @app.post('/rules', dependencies=[Depends(verify_api_key)])
-async def update_rules(req: RuleRequest):
+async def update_rules(req: RuleRequest, user_id: str = Header(None, alias="X-USER-ID")):
     logger.info("Обновление правил")
+    for rule in req.rules:
+        save_and_commit_rule(rule.get('id'), rule, 'update', user_id or 'system', 'bulk update')
     with open(cacd.rules_path, 'w') as f:
         json.dump(req.rules, f, indent=2)
     cacd._load_rules()
@@ -1342,4 +1344,59 @@ async def login_user(req: UserLoginRequest):
         role = row['role']
         access_token_expires = datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         token = jwt.encode({"sub": str(user_id), "username": req.username, "role": role, "exp": access_token_expires}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "token_type": "bearer"} 
+    return {"access_token": token, "token_type": "bearer"}
+
+def save_and_commit_rule(rule_id: str, data: dict, action: str, author: str, reason: str = ""):
+    """
+    Сохраняет правило в rules/{rule_id}.json и делает git commit с подробным описанием.
+    action: create|update|delete
+    author: имя пользователя
+    reason: причина/описание
+    """
+    import json, os
+    path = os.path.join('rules', f'{rule_id}.json')
+    if action == 'delete':
+        if os.path.exists(path):
+            os.remove(path)
+    else:
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    subprocess.run(['git', 'add', path], check=False)
+    msg = f"[rule] [{action}] {rule_id} {author}: {reason}"
+    subprocess.run(['git', 'commit', '-m', msg], check=False)
+
+@app.get('/rules/{rule_id}/changelog', dependencies=[Depends(verify_api_key)])
+async def get_rule_changelog(rule_id: str):
+    import subprocess, os
+    path = os.path.join('rules', f'{rule_id}.json')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Правило не найдено")
+    result = subprocess.run(['git', 'log', '--pretty=format:%h|%an|%ad|%s', '--date=iso', '--', path], capture_output=True, text=True)
+    log = []
+    for line in result.stdout.strip().split('\n'):
+        if line:
+            parts = line.split('|', 3)
+            if len(parts) == 4:
+                log.append({
+                    'commit': parts[0],
+                    'author': parts[1],
+                    'date': parts[2],
+                    'message': parts[3]
+                })
+    return log
+
+@app.post('/rules/{rule_id}/rollback', dependencies=[Depends(verify_api_key)])
+async def rollback_rule(rule_id: str, commit: str = Form(...), user_id: str = Header(None, alias="X-USER-ID")):
+    import subprocess, os
+    path = os.path.join('rules', f'{rule_id}.json')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Правило не найдено")
+    # Откат файла к выбранному коммиту
+    result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail=f"Ошибка git checkout: {result.stderr}")
+    # Новый коммит с пометкой rollback
+    msg = f"[rule] [rollback] {rule_id} {user_id}: rollback to {commit}"
+    subprocess.run(['git', 'add', path], check=False)
+    subprocess.run(['git', 'commit', '-m', msg], check=False)
+    return {"status": "rolled back", "rule_id": rule_id, "commit": commit} 
