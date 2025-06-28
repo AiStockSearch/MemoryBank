@@ -126,4 +126,155 @@ def test_conflict_on_rollback(client):
     assert resp.status_code == 200
     # Проверяем, что rollback зафиксирован
     log2 = check_output(["git", "log", "--oneline", "--", "rules/ruleConflict.json"]).decode()
-    assert "rollback" in log2.splitlines()[0] 
+    assert "rollback" in log2.splitlines()[0]
+
+def test_batch_rollback_rules(client):
+    # Создаём два правила, обновляем, делаем batch rollback
+    rules = [
+        {"id": "ruleBR1", "type": "priority", "value": "low"},
+        {"id": "ruleBR2", "type": "priority", "value": "medium"}
+    ]
+    client.post("/rules", json={"rules": rules}, headers={"X-USER-ID": "tester"})
+    # Обновляем оба
+    rules2 = [
+        {"id": "ruleBR1", "type": "priority", "value": "high"},
+        {"id": "ruleBR2", "type": "priority", "value": "high"}
+    ]
+    client.post("/rules", json={"rules": rules2}, headers={"X-USER-ID": "tester"})
+    from subprocess import check_output
+    log = check_output(["git", "log", "--oneline", "--", "rules/ruleBR1.json"]).decode().splitlines()
+    commit_hash = log[1].split()[0]  # первый коммит (до обновления)
+    # Batch rollback
+    query = '''
+    mutation BatchRollback($ids: [String!]!, $commit: String!, $user_id: String!) {
+      batchRollbackRules(ids: $ids, commit: $commit, user_id: $user_id) {
+        status
+        results { ruleId status commit error }
+      }
+    }
+    '''
+    resp = client.post("/graphql", json={"query": query, "variables": {"ids": ["ruleBR1", "ruleBR2"], "commit": commit_hash, "user_id": "tester"}})
+    assert resp.status_code == 200
+    data = resp.json()["data"]["batchRollbackRules"]
+    assert data["status"] == "ok"
+    assert all(r["status"] == "rolled back" for r in data["results"])
+
+def test_batch_delete_rules(client):
+    # Создаём два правила
+    rules = [
+        {"id": "ruleBD1", "type": "priority", "value": "low"},
+        {"id": "ruleBD2", "type": "priority", "value": "medium"}
+    ]
+    client.post("/rules", json={"rules": rules}, headers={"X-USER-ID": "tester"})
+    # Batch delete
+    query = '''
+    mutation BatchDelete($ids: [String!]!, $user_id: String!) {
+      batchDeleteRules(ids: $ids, user_id: $user_id) {
+        status
+        deletedIds
+        errors
+      }
+    }
+    '''
+    resp = client.post("/graphql", json={"query": query, "variables": {"ids": ["ruleBD1", "ruleBD2"], "user_id": "tester"}})
+    assert resp.status_code == 200
+    data = resp.json()["data"]["batchDeleteRules"]
+    assert data["status"] == "ok"
+    assert set(data["deletedIds"]) == {"ruleBD1", "ruleBD2"}
+    assert not data["errors"]
+
+def test_conflict_on_import(client):
+    # Импортируем проект с существующим origin
+    project_id = create_test_project()
+    resp = client.get(f"/projects/{project_id}/export", headers=HEADERS)
+    assert resp.status_code == 200
+    zip_bytes = resp.content
+    with tempfile.NamedTemporaryFile(suffix='.zip') as tmp:
+        tmp.write(zip_bytes)
+        tmp.seek(0)
+        files = {"file": ("export.zip", tmp, "application/zip")}
+        data = {"new_origin": "test-origin"}  # origin уже существует
+        resp2 = client.post("/projects/import", files=files, data=data, headers=HEADERS)
+        assert resp2.status_code == 409
+        # Здесь можно проверить, что notify_conflict был вызван (например, через mock или лог)
+
+def test_conflict_on_merge(client):
+    # Создаём проект, экспортируем, импортируем, делаем merge с конфликтом
+    project_id = create_test_project()
+    client.post("/tasks", json={"command": "cmd", "task_id": "t1"}, headers=HEADERS)
+    resp = client.get(f"/projects/{project_id}/export", headers=HEADERS)
+    zip_bytes = resp.content
+    with tempfile.NamedTemporaryFile(suffix='.zip') as tmp:
+        tmp.write(zip_bytes)
+        tmp.seek(0)
+        files = {"file": ("export.zip", tmp, "application/zip")}
+        data = {"new_origin": "imported-origin"}
+        resp2 = client.post("/projects/import", files=files, data=data, headers=HEADERS)
+        imported_id = resp2.json()["project_id"]
+    # Добавляем задачу с тем же id в импортированный проект
+    client.post("/tasks", json={"command": "cmd2", "task_id": "t1"}, headers=HEADERS)
+    # Merge с конфликтом
+    with tempfile.NamedTemporaryFile(suffix='.zip') as tmp:
+        tmp.write(zip_bytes)
+        tmp.seek(0)
+        files = {"file": ("export.zip", tmp, "application/zip")}
+        resp3 = client.post(f"/projects/{imported_id}/merge", files=files, data={"dry_run": "true"}, headers=HEADERS)
+        assert resp3.status_code == 200
+        diff = resp3.json()
+        assert diff["tasks"]["conflicted"]
+        # Здесь можно проверить, что notify_conflict был вызван (например, через mock или лог)
+
+def test_batch_rollback_templates(client):
+    # Создаём два шаблона, обновляем, делаем batch rollback
+    templates = [
+        {"name": "tplBR1", "repo_url": "https://repo/a", "tags": ["a"]},
+        {"name": "tplBR2", "repo_url": "https://repo/b", "tags": ["b"]}
+    ]
+    client.post("/templates", json=templates, headers={"X-USER-ID": "tester"})
+    # Обновляем оба
+    templates2 = [
+        {"name": "tplBR1", "repo_url": "https://repo/a2", "tags": ["a2"]},
+        {"name": "tplBR2", "repo_url": "https://repo/b2", "tags": ["b2"]}
+    ]
+    client.post("/templates", json=templates2, headers={"X-USER-ID": "tester"})
+    from subprocess import check_output
+    log = check_output(["git", "log", "--oneline", "--", "templates/tplBR1.json"]).decode().splitlines()
+    commit_hash = log[1].split()[0]  # первый коммит (до обновления)
+    # Batch rollback
+    query = '''
+    mutation BatchRollback($names: [String!]!, $commit: String!, $user_id: String!) {
+      batchRollbackTemplates(names: $names, commit: $commit, user_id: $user_id) {
+        status
+        results { ruleId status commit error }
+      }
+    }
+    '''
+    resp = client.post("/graphql", json={"query": query, "variables": {"names": ["tplBR1", "tplBR2"], "commit": commit_hash, "user_id": "tester"}})
+    assert resp.status_code == 200
+    data = resp.json()["data"]["batchRollbackTemplates"]
+    assert data["status"] == "ok"
+    assert all(r["status"] == "rolled back" for r in data["results"])
+
+def test_batch_delete_templates(client):
+    # Создаём два шаблона
+    templates = [
+        {"name": "tplBD1", "repo_url": "https://repo/a", "tags": ["a"]},
+        {"name": "tplBD2", "repo_url": "https://repo/b", "tags": ["b"]}
+    ]
+    client.post("/templates", json=templates, headers={"X-USER-ID": "tester"})
+    # Batch delete
+    query = '''
+    mutation BatchDelete($names: [String!]!, $user_id: String!) {
+      batchDeleteTemplates(names: $names, user_id: $user_id) {
+        status
+        deletedIds
+        errors
+      }
+    }
+    '''
+    resp = client.post("/graphql", json={"query": query, "variables": {"names": ["tplBD1", "tplBD2"], "user_id": "tester"}})
+    assert resp.status_code == 200
+    data = resp.json()["data"]["batchDeleteTemplates"]
+    assert data["status"] == "ok"
+    assert set(data["deletedIds"]) == {"tplBD1", "tplBD2"}
+    assert not data["errors"] 
