@@ -56,14 +56,13 @@ def cmd_roadmap(args):
     print(f"Gantt-диаграмма roadmap сохранена в {out_path}")
 
 def cmd_generate_spec(args):
-    # Генерация projectBrief.md по расширенному шаблону
+    # Генерация projectBrief.md по максимально расширенному шаблону
     project_type = args.type or 'landing'
     audience = args.audience.split(',') if args.audience else ['freelancers', 'managers']
     problems_count = int(args.problems) if args.problems else 100
     project_name = args.name or 'Demo Project'
     out_path = args.out or 'projectBrief.md'
 
-    # Скелет расширенного шаблона (можно вынести в отдельный файл)
     content = f"""# Project Brief: {project_name}
 
 ## 1. Мета-данные
@@ -86,14 +85,135 @@ def cmd_generate_spec(args):
 - Feature matrix: <...>
 
 ## 4. User Research & Personas
-- Персоны: {', '.join(audience)}
-- Pain points: <...>
+- Сегменты: {', '.join(audience)}
+- Персоны: <...>
+- Психографика: <...>
+- Customer Stories: <...>
+- JTBD: <...>
+- Триггеры/барьеры: <...>
+- Customer Success Map: <...>
 
-## 5. Customer Journey & Experience Map
-- Для каждого сегмента: <...>
-- Визуализация: <Mermaid/UML>
+## 5. Customer Insights & Deep Analysis
+- AI-анализ отзывов/форумов: <...>
+- Кластеризация боли/ожиданий: <...>
+- Цитаты клиентов: <...>
 
-## 6. Problem Space & Opportunity Mapping
+## 6. Customer Acquisition & Funnel
+- Каналы: <...>
+- Воронка: <...>
+- CAC, CPL: <...>
+- Growth loops: <...>
+- Виральные механики: <...>
+- Retention/engagement: <...>
+
+## 7. Customer Value & Monetization
+- Средний чек (ARPU): <...>
+- LTV: <...>
+- Модели монетизации: <...>
+- Unit-экономика: <...>
+- Payback period: <...>
+
+## 8. Market Sizing (TAM/SAM/SOM)
+- TAM: <...>
+- SAM: <...>
+- SOM: <...>
+- Источники данных: <...>
+
+## 9. Competitive Analysis
+- Таблица конкурентов: <...>
+- AI-анализ "дыр" на рынке: <...>
+
+## 10. Pricing & Packaging
+- Тарифы: <...>
+- A/B тесты: <...>
+- AI-рекомендации: <...>
+
+## 11. Metrics & Analytics
+- Ключевые метрики: <...>
+- Динамика: <...>
+- AI-прогнозы: <...>
+
+## 12. Go-to-Market & Growth
+- План запуска: <...>
+- Growth experiments: <...>
+- AI-идеи для роста: <...>
+
+## 13. Financial Plan & Forecast
+- P&L: <...>
+- Unit-экономика: <...>
+- Прогноз: <...>
+- AI: Точка безубыточности, сценарии
+
+## 14. Ecosystem & Partnerships
+- Карта экосистемы: <...>
+- Партнёры, интеграторы, инфлюенсеры: <...>
+- API, SDK, marketplace: <...>
+
+## 15. Team & Culture
+- Командные ценности: <...>
+- План развития: <...>
+- AI-анализ рисков: <...>
+
+## 16. Legal & Regulatory
+- Юридические риски: <...>
+- AI-мониторинг законодательства: <...>
+- Force majeure: <...>
+
+## 17. Technology & Innovation
+- AI/ML roadmap: <...>
+- Технологические тренды: <...>
+- Open source: <...>
+
+## 18. Sustainability & Impact
+- Экологический след: <...>
+- Социальная миссия: <...>
+- ESG-метрики: <...>
+
+## 19. Scenario Planning & Risk Management
+- Сценарии развития: <...>
+- AI-генерация "what if": <...>
+- План реагирования: <...>
+
+## 20. Continuous Discovery & Feedback
+- Система сбора обратной связи: <...>
+- AI-генерация гипотез: <...>
+- Product discovery: <...>
+
+## 21. Data Strategy & Privacy
+- Стратегия данных: <...>
+- AI-оценка рисков: <...>
+- Монетизация данных: <...>
+
+## 22. Go Global
+- Мультиязычность: <...>
+- Локализация: <...>
+- План выхода на новые рынки: <...>
+
+## 23. AI-Driven Automation
+- AI-ассистент: <...>
+- AI-инициатор: <...>
+- Автоматизация: <...>
+
+## 24. Customizable & Extensible
+- Модульность: <...>
+- Интеграция с внешними системами: <...>
+- API-first: <...>
+
+## 25. Visual Dashboards & Live Metrics
+- Дашборды: <...>
+- Live-отчёты: <...>
+
+## 26. Knowledge Graph & Semantic Links
+- Граф знаний: <...>
+- AI-поиск по графу: <...>
+
+## 27. AI-Generated Executive Summary
+- Ключевые выводы: <...>
+- Риски: <...>
+- Возможности: <...>
+- Прогнозы: <...>
+
+## 28. Problem Space & Opportunity Mapping
 - Категории проблем: <...>
 - Opportunity backlog: <...>
 - Пример проблем:
@@ -102,53 +222,53 @@ def cmd_generate_spec(args):
         content += f"- Проблема {i}: <описание>\n"
     content += """
 
-## 7. Solution Space
+## 29. Solution Space
 - User stories: <...>
 - Acceptance criteria: <...>
 - Альтернативы: <...>
 
-## 8. Roadmap & Release Plan
+## 30. Roadmap & Release Plan
 - Gantt/story map: <...>
 - Value/effort matrix: <...>
 
-## 9. Architecture & Integrations
+## 31. Architecture & Integrations
 - Архитектура: <...>
 - Интеграции: <...>
 - Sequence diagrams: <...>
 
-## 10. Analytics & Success Metrics
+## 32. Analytics & Success Metrics
 - KPI/OKR: <...>
 - Метрики: <...>
 - BI/дашборды: <...>
 
-## 11. Security & Compliance
+## 33. Security & Compliance
 - Требования: <...>
 - DRP: <...>
 
-## 12. UX/UI & Accessibility
+## 34. UX/UI & Accessibility
 - Дизайн-система: <...>
 - Accessibility: <...>
 
-## 13. Delivery & Estimation
+## 35. Delivery & Estimation
 - Таблица: <...>
 - Story points: <...>
 
-## 14. Risks & Mitigation
+## 36. Risks & Mitigation
 - Риски: <...>
 - Mitigation: <...>
 
-## 15. Acceptance Criteria & DoD
+## 37. Acceptance Criteria & DoD
 - Критерии: <...>
 - Тест-кейсы: <...>
 
-## 16. Change Log & Decision Log
+## 38. Change Log & Decision Log
 - История изменений: <...>
 - Ключевые решения: <...>
 
-## 17. Federation & Knowledge Sharing
+## 39. Federation & Knowledge Sharing
 - Экспорт/импорт: <...>
 
-## 18. Чек-лист полноты
+## 40. Чек-лист полноты
 - [ ] ...
 
 > AI: Все разделы автоматически проверяются на полноту, связность, актуальность. После генерации — инициировать AI-ревью, экспорт, снапшот.
