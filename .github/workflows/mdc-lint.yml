@@ -1,0 +1,16 @@
+name: MDC Rules Lint
+
+on:
+  push:
+    paths:
+      - '.cursor/rules/**/*.mdc'
+
+jobs:
+  mdc-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Проверка структуры MDC-правил
+        run: |
+          pip install pyyaml
+          python scripts/mdc_lint.py .cursor/rules/ 
