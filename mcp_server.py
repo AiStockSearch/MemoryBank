@@ -987,6 +987,13 @@ class RuleChangelogEntry:
     message: str
 
 @strawberry.type
+class TemplateChangelogEntry:
+    commit: str
+    author: str
+    date: str
+    message: str
+
+@strawberry.type
 class Query:
     @strawberry.field
     async def projects(self) -> List[ProjectType]:
@@ -1050,6 +1057,21 @@ class Query:
                 parts = line.split('|', 3)
                 if len(parts) == 4:
                     log.append(RuleChangelogEntry(commit=parts[0], author=parts[1], date=parts[2], message=parts[3]))
+        return log
+
+    @strawberry.field
+    async def template_changelog(self, name: str) -> List[TemplateChangelogEntry]:
+        import subprocess, os
+        path = os.path.join('templates', f'{name}.json')
+        if not os.path.exists(path):
+            raise Exception("Шаблон не найден")
+        result = subprocess.run(['git', 'log', '--pretty=format:%h|%an|%ad|%s', '--date=iso', '--', path], capture_output=True, text=True)
+        log = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split('|', 3)
+                if len(parts) == 4:
+                    log.append(TemplateChangelogEntry(commit=parts[0], author=parts[1], date=parts[2], message=parts[3]))
         return log
 
 @strawberry.input
@@ -1265,6 +1287,47 @@ class Mutation:
         subprocess.run(['git', 'commit', '-m', msg], check=False)
         return RollbackResult(status="rolled back", rule_id=id, commit=commit)
 
+    @strawberry.mutation
+    async def rollback_template(self, name: str, commit: str, user_id: str) -> RollbackResult:
+        import subprocess, os
+        path = os.path.join('templates', f'{name}.json')
+        if not os.path.exists(path):
+            return RollbackResult(status="error", rule_id=name, commit=commit, error="Шаблон не найден")
+        result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+        if result.returncode != 0:
+            msg = f"Конфликт при откате шаблона {name} пользователем {user_id}: {result.stderr}"
+            notify_mac("MCP: Конфликт", msg)
+            return RollbackResult(status="conflict", rule_id=name, commit=commit, error=result.stderr)
+        msg = f"[template] [rollback] {name} {user_id}: rollback to {commit}"
+        subprocess.run(['git', 'add', path], check=False)
+        subprocess.run(['git', 'commit', '-m', msg], check=False)
+        return RollbackResult(status="rolled back", rule_id=name, commit=commit)
+
+    @strawberry.mutation
+    async def batch_update_rules(self, rules: List[RuleInput], user_id: str) -> str:
+        items = [dict(r) for r in rules]
+        batch_save_and_commit(items, 'rule', 'update', user_id or 'system', 'bulk update (GraphQL)')
+        return "ok"
+
+    @strawberry.mutation
+    async def batch_update_templates(self, templates: List[TemplateInput], user_id: str) -> str:
+        items = [dict(t) for t in templates]
+        batch_save_and_commit(items, 'template', 'update', user_id or 'system', 'bulk update (GraphQL)')
+        return "ok"
+
+@strawberry.input
+class RuleInput:
+    id: str
+    type: str
+    value: str
+    description: str = ""
+
+@strawberry.input
+class TemplateInput:
+    name: str
+    repo_url: str
+    tags: List[str] = strawberry.field(default_factory=list)
+
 @strawberry.type
 class Subscription:
     @strawberry.subscription
@@ -1366,6 +1429,14 @@ class Subscription:
         finally:
             deleted_template_subscribers.remove(queue)
 
+conflict_subscribers = set()
+
+async def notify_conflict(event: dict):
+    # Отправка всем подписчикам через WebSocket
+    for queue in list(conflict_subscribers):
+        await queue.put(event)
+    # Также отправляем push-нотификацию на Mac
+    notify_mac("MCP: Конфликт", event.get("details", str(event)))
 schema = strawberry.Schema(Query, Mutation, Subscription)
 app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql")
 
