@@ -31,6 +31,8 @@ import base64
 import httpx
 import sys
 import importlib.util
+import yaml
+import filecmp
 
 # Импортируем генератор memory-bank
 from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES
@@ -578,5 +580,74 @@ async def complete_epic(
     except Exception as e:
         print(f"Ошибка создания снапшота после завершения Epic: {e}")
     # ... остальной код ...
+
+@app.post('/custom_command/{command_name}')
+async def run_custom_command(command_name: str, request: Request):
+    params = await request.json()
+    cmd_path = os.path.join('memory-bank', 'custom_commands', f'{command_name}.yaml')
+    if not os.path.exists(cmd_path):
+        raise HTTPException(status_code=404, detail=f'Custom command {command_name} not found')
+    with open(cmd_path, 'r') as f:
+        cmd = yaml.safe_load(f)
+    # Здесь можно реализовать исполнение action (например, mapping на Python-функции)
+    # Пока просто возвращаем описание и action как заглушку
+    return {
+        'status': 'ok',
+        'command': command_name,
+        'description': cmd.get('description'),
+        'parameters': params,
+        'action': cmd.get('action')
+    }
+
+@app.post('/memory-bank/import')
+async def import_memory_bank(file: UploadFile = File(...)):
+    import zipfile, os
+    with zipfile.ZipFile(file.file) as zf:
+        zf.extractall('memory-bank/')
+    return {"status": "imported"}
+
+@app.get('/memory-bank/export')
+async def export_memory_bank():
+    import zipfile, io, os
+    mem_zip = io.BytesIO()
+    with zipfile.ZipFile(mem_zip, 'w') as zf:
+        for root, dirs, files in os.walk('memory-bank/'):
+            for f in files:
+                zf.write(os.path.join(root, f), os.path.relpath(os.path.join(root, f), 'memory-bank/'))
+    mem_zip.seek(0)
+    return StreamingResponse(mem_zip, media_type='application/zip', headers={'Content-Disposition': 'attachment; filename=memory-bank.zip'})
+
+@app.post('/memory-bank/merge')
+async def merge_memory_bank(
+    archive: UploadFile = File(...),
+    dry_run: bool = Form(True)
+):
+    import zipfile, os, io
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with zipfile.ZipFile(archive.file) as zf:
+            zf.extractall(tmpdir)
+        diff = []
+        for root, dirs, files in os.walk(tmpdir):
+            for f in files:
+                rel_path = os.path.relpath(os.path.join(root, f), tmpdir)
+                target_path = os.path.join('memory-bank', rel_path)
+                if not os.path.exists(target_path):
+                    diff.append(f'NEW: {rel_path}')
+                elif not filecmp.cmp(os.path.join(root, f), target_path, shallow=False):
+                    diff.append(f'CHANGED: {rel_path}')
+        for root, dirs, files in os.walk('memory-bank'):
+            for f in files:
+                rel_path = os.path.relpath(os.path.join(root, f), 'memory-bank')
+                if not os.path.exists(os.path.join(tmpdir, rel_path)):
+                    diff.append(f'DELETED: {rel_path}')
+        if dry_run:
+            return {'status': 'dry-run', 'diff': diff}
+        for root, dirs, files in os.walk(tmpdir):
+            for f in files:
+                rel_path = os.path.relpath(os.path.join(root, f), tmpdir)
+                target_path = os.path.join('memory-bank', rel_path)
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                shutil.copy2(os.path.join(root, f), target_path)
+        return {'status': 'merged', 'diff': diff}
 
 app.include_router(router)
