@@ -161,17 +161,50 @@ def notify_mac(title: str, message: str):
 # notify_mac("MCP", "Новая задача создана!")
 
 @app.post('/docs', dependencies=[Depends(verify_api_key)])
-async def create_doc(project_id: int, type: str, content: str):
+async def create_doc(project_id: int, type: str, content: str, user_id: str = Header(None, alias="X-USER-ID")):
     pool = await cacd.memory._get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            'INSERT INTO docs (project_id, type, content) VALUES ($1, $2, $3)',
+        row = await conn.fetchrow(
+            'INSERT INTO docs (project_id, type, content) VALUES ($1, $2, $3) RETURNING id',
             project_id, type, content
         )
+        doc_id = row['id']
     msg = f"Добавлен документ типа {type} для проекта {project_id}"
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
-    return {"status": "doc created"}
+    # --- Автосохранение версии ---
+    async with pool.acquire() as conn:
+        vrow = await conn.fetchrow('SELECT max(version) as v FROM doc_versions WHERE doc_id = $1', doc_id)
+        version = (vrow['v'] or 0) + 1
+        await conn.execute('''INSERT INTO doc_versions (doc_id, project_id, version, data, user_id) VALUES ($1, $2, $3, $4, $5)''',
+            doc_id, project_id, version, json.dumps({"type": type, "content": content}), user_id)
+    return {"status": "doc created", "doc_id": doc_id}
+
+@app.get('/docs/{doc_id}/versions')
+async def get_doc_versions(doc_id: int):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('SELECT version, data, user_id, created_at FROM doc_versions WHERE doc_id = $1 ORDER BY version DESC', doc_id)
+        return [{"version": r["version"], "user_id": r["user_id"], "created_at": r["created_at"], "data": r["data"]} for r in rows]
+
+@app.post('/docs/{doc_id}/rollback')
+async def rollback_doc(doc_id: int, version: int, user_id: str = Header(None, alias="X-USER-ID")):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT data, project_id FROM doc_versions WHERE doc_id = $1 AND version = $2', doc_id, version)
+        if not row:
+            raise HTTPException(status_code=404, detail="Версия не найдена")
+        data = json.loads(row['data'])
+        project_id = row['project_id']
+        # Перезаписываем документ
+        await conn.execute('''UPDATE docs SET type=$1, content=$2 WHERE id=$3''',
+            data.get('type'), data.get('content'), doc_id)
+        # Сохраняем новую версию (rollback)
+        vrow = await conn.fetchrow('SELECT max(version) as v FROM doc_versions WHERE doc_id = $1', doc_id)
+        new_version = (vrow['v'] or 0) + 1
+        await conn.execute('''INSERT INTO doc_versions (doc_id, project_id, version, data, user_id) VALUES ($1, $2, $3, $4, $5)''',
+            doc_id, project_id, new_version, json.dumps(data), user_id)
+    return {"status": "rolled_back", "doc_id": doc_id, "version": version}
 
 @app.get('/projects/{project_id}/export', dependencies=[Depends(verify_api_key)])
 async def export_project(project_id: int, user_id: str = Header(None, alias="X-USER-ID")):
