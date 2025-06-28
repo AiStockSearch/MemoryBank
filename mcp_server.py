@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from cacd import CACD
 from typing import Optional, List, Any
 import json
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 import logging
 import os
 import pync
@@ -24,6 +24,7 @@ from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_P
 import asyncio
 from passlib.context import CryptContext
 from jose import jwt, JWTError
+from starlette.middleware.base import BaseHTTPMiddleware
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -47,6 +48,37 @@ SECRET_KEY = os.getenv("JWT_SECRET", "supersecretjwtkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+WHITELIST_PATHS = {'/auth/login', '/auth/register'}
+
+class JWTAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Пропуск для whitelist
+        if request.url.path in WHITELIST_PATHS:
+            return await call_next(request)
+        # Пропуск для GraphQL queries
+        if request.url.path == '/graphql':
+            body = await request.body()
+            if b'"query"' in body and b'mutation' not in body:
+                return await call_next(request)
+        # Проверка JWT
+        auth_header = request.headers.get('authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return JSONResponse(status_code=403, content={"detail": "Требуется авторизация"})
+        token = auth_header.split(' ')[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            role = payload.get('role')
+            user_id = payload.get('sub')
+            if role not in ('root', 'agent'):
+                return JSONResponse(status_code=403, content={"detail": "Недостаточно прав"})
+            request.state.user_id = user_id
+            request.state.role = role
+        except JWTError:
+            return JSONResponse(status_code=403, content={"detail": "Неверный или просроченный токен"})
+        return await call_next(request)
+
+app.add_middleware(JWTAuthMiddleware)
 
 def verify_api_key(request: Request):
     key = request.headers.get("X-API-KEY")

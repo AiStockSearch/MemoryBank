@@ -297,6 +297,17 @@
 - [x] Реализован endpoint POST /auth/register (регистрация пользователя)
 - [x] Реализован endpoint POST /auth/login (выдача JWT)
 - [x] Описаны новые endpoint'ы в README.md
-- [ ] Добавить middleware для проверки JWT и защиту endpoint'ов (backlog)
+- [x] Реализовано минимальное JWT middleware:
+    - Проверяет JWT для всех endpoint'ов, кроме /auth/login, /auth/register, GraphQL queries
+    - Пропускает только пользователей с ролью root или agent
+    - Прокидывает user_id и роль в request.state
+    - Возвращает 403 при ошибке
+- [ ] RBAC (role-based access control) для endpoint'ов и GraphQL
+- [ ] Аудит и логирование действий пользователя (user_id, endpoint, действие)
+- [ ] Rate limiting на уровне middleware (например, для login)
+- [ ] Интеграция с внешними провайдерами (OAuth2, SSO)
+- [ ] Авторизация для подписок (GraphQL subscriptions)
+- [ ] CORS и secure headers (аналог helmet)
+- [ ] Глобальный error boundary для стандартизированных ошибок авторизации
 
 _Этот список — backlog: задачи не обязательны к реализации, но могут быть полезны для масштабирования, интеграции, автоматизации или улучшения UX в будущем._ 
