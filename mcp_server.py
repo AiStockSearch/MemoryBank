@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body, status
 from pydantic import BaseModel
-from cacd import CACD
+from core import cacd
 from typing import Optional, List, Any
 import json
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
@@ -33,13 +33,12 @@ import sys
 import importlib.util
 import yaml
 import filecmp
+from graphql_schema import schema
 
 # Импортируем генератор memory-bank
 from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES
 
 app = FastAPI()
-dsn = os.getenv("DB_DSN")
-cacd = CACD(dsn)
 
 API_KEY = "supersecretkey"  # Можно вынести в переменные окружения
 
@@ -64,6 +63,11 @@ WHITELIST_PATHS = {'/auth/login', '/auth/register'}
 
 # In-memory хранилище webhook-URL (можно заменить на БД)
 registered_webhooks = set()
+
+def verify_api_key(request: Request):
+    key = request.headers.get("X-API-KEY")
+    if key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
 
 @app.post('/webhooks/register', dependencies=[Depends(verify_api_key)])
 async def register_webhook(url: str = Body(..., embed=True)):
@@ -118,11 +122,6 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(JWTAuthMiddleware)
-
-def verify_api_key(request: Request):
-    key = request.headers.get("X-API-KEY")
-    if key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
 
 class TaskRequest(BaseModel):
     command: str
@@ -723,4 +722,6 @@ async def federation_push_template(origin: str, file: UploadFile = File(...)):
     # TODO: логировать операцию
     return {'status': 'uploaded', 'file': file.filename}
 
-app.include_router(router)
+# Подключение GraphQL схемы
+graphql_app = GraphQLRouter(schema)
+app.include_router(graphql_app, prefix="/graphql")

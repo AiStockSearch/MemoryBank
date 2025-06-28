@@ -488,3 +488,65 @@ _Этот список — backlog: задачи не обязательны к 
 - [ ] Реализовать endpoint для custom commands
 - [ ] Добавить автотесты и документацию
 - [ ] Внедрить UI/CLI-индикаторы статуса 
+
+## Federation & Archive: Выполненные задачи
+- [x] Внедрена новая архитектура archive/<origin>/ и memory-bank (только шаблоны)
+- [x] Все federation/CLI/API работают только с archive/<origin>/
+- [x] memory-bank исключён из обмена рабочими данными
+- [x] Реализованы автотесты для federation/CLI и endpoints
+- [x] Внедрён скрипт auto_feedback_to_backlog.py
+- [x] Подготовлены onboarding-чеклист и презентация
+- [x] Ведётся backlog предложений (federation_backlog.md)
+- [x] Ведётся security_audit_checklist.md
+
+## Federation & Archive: Текущие и новые задачи
+- [ ] Регулярно запускать auto_feedback_to_backlog.py для актуализации backlog
+- [ ] Обновлять onboarding_checklist.md и презентацию при изменениях
+- [ ] Проводить аудит по security_audit_checklist.md после каждого релиза
+- [ ] Расширять автотесты по новым сценариям federation/архивов
+- [ ] Вести changelog по всем операциям federation
+- [ ] Интегрировать предложения из backlog в задачи
+- [ ] Связывать задачи с feedback и backlog 
+
+## Apollo Server (GraphQL)
+- [ ] Провести аудит и рефакторинг схемы GraphQL под новые требования (federation, archive/<origin>/, новые сущности, права)
+- [ ] Обновить/добавить subscriptions для live-обновлений задач, docs, событий
+- [ ] Реализовать новые резолверы для поддержки federation, changelog, feedback
+- [ ] Добавить тесты для GraphQL endpoint (queries, mutations, subscriptions)
+- [ ] Обновить документацию по GraphQL API (описание схемы, примеры запросов)
+- [ ] Проверить и доработать интеграцию с Apollo-клиентом (React, Python)
+
+## SYNC Agent
+- [ ] Описать и реализовать архитектуру SYNC Agent (отдельный сервис/скрипт)
+- [ ] Реализовать автоматический экспорт/импорт архивов через archive/<origin>/
+- [ ] Реализовать мониторинг изменений (changelog, auditLog, новые knowledge packages)
+- [ ] Добавить поддержку federation endpoint'ов (pull/push_knowledge, pull/push_command, pull/push_template)
+- [ ] Реализовать защиту от конфликтов и подмены origin
+- [ ] Добавить логирование и отчётность по операциям SYNC
+- [ ] Добавить тесты для сценариев синхронизации (edge-cases, rollback, атаки)
+- [ ] Описать процесс настройки и запуска SYNC Agent в документации
+- [ ] Добавить секцию SYNC Agent в onboarding и презентацию
+
+## Master Task Pool
+- [ ] Провести анализ необходимости Master Task Pool (централизованный пул задач)
+- [ ] Если нужен — описать архитектуру, сценарии использования, интеграцию с MCP
+- [ ] Если не нужен — зафиксировать решение и убрать из roadmap
+
+## MCP сервер и инфраструктура
+- [ ] Пометить endpoints memory-bank/import/export/merge/rollback как deprecated или ограничить доступ
+- [ ] Добавить строгую валидацию origin для federation endpoint'ов
+- [ ] Обновить документацию API (GraphQL, REST) с учётом новой архитектуры
+- [ ] Добавить healthcheck endpoint для мониторинга состояния сервера
+- [ ] Ввести версионирование API и схемы архивов
+- [ ] Реализовать автоматическую генерацию changelog по federation-операциям
+- [ ] Добавить endpoint/процесс Lessons Learned/ретроспективы
+
+## Документация и процессы
+- [ ] Обновить README.md, onboarding, презентацию с учётом новых компонентов (Apollo, SYNC Agent, Master Task Pool)
+- [ ] Добавить секцию с типовыми ошибками и рекомендациями (Lessons Learned)
+- [ ] Вести changelog по всем изменениям в архитектуре и процессах
+
+## Тестирование и безопасность
+- [ ] Расширять автотесты по новым сценариям (Apollo, SYNC Agent, federation)
+- [ ] Проводить аудит по security_audit_checklist.md после каждого релиза
+- [ ] Интегрировать предложения из backlog в задачи и тесты 
