@@ -581,6 +581,160 @@ def batch_export_templates_from_archive(args):
             shutil.copy2(meta_path, target_path + '.meta.json')
         print(f'Экспортирован шаблон из архива: {target_path}')
 
+def list_templates(args):
+    import os
+    import json
+    if args.archive:
+        base_dir = f"archive/projects/{args.project_id}/templates/"
+    else:
+        base_dir = f"memory-bank/projects/{args.project_id}/templates/"
+    if not os.path.exists(base_dir):
+        print(f'Нет шаблонов для проекта {args.project_id} в {"архиве" if args.archive else "рабочей папке"}.')
+        return
+    files = [f for f in os.listdir(base_dir) if not f.endswith('.meta.json')]
+    if not files:
+        print(f'Нет шаблонов для проекта {args.project_id} в {"архиве" if args.archive else "рабочей папке"}.')
+        return
+    print(f'Шаблоны для проекта {args.project_id} ({"архив" if args.archive else "рабочая папка"}):')
+    for filename in files:
+        meta_path = os.path.join(base_dir, filename + '.meta.json')
+        meta = {}
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                try:
+                    meta = json.load(f)
+                except Exception:
+                    meta = {}
+        print(f'- {filename} | source: {meta.get("source", "-")}, version: {meta.get("version", "-")}, origin: {meta.get("origin", "-")}')
+
+def remove_template(args):
+    import os
+    base_dir = f"archive/projects/{args.project_id}/templates/" if args.archive else f"memory-bank/projects/{args.project_id}/templates/"
+    file_path = os.path.join(base_dir, args.filename)
+    meta_path = file_path + '.meta.json'
+    if not os.path.exists(file_path):
+        print(f'Шаблон {args.filename} не найден в {"архиве" if args.archive else "рабочей папке"}.')
+        return
+    confirm = input(f'Удалить шаблон {args.filename} из {"архива" if args.archive else "рабочей папки"}? (y/n): ').strip().lower()
+    if confirm != 'y':
+        print('Удаление отменено.')
+        return
+    os.remove(file_path)
+    if os.path.exists(meta_path):
+        os.remove(meta_path)
+    print(f'Шаблон {args.filename} удалён из {"архива" if args.archive else "рабочей папки"}.')
+
+def federation_export_templates(args):
+    import os
+    import zipfile
+    base_dir = f"archive/projects/{args.project_id}/templates/"
+    if not os.path.exists(base_dir):
+        print(f'Нет шаблонов для проекта {args.project_id} в архиве.')
+        return
+    files = [f for f in os.listdir(base_dir) if not f.endswith('.meta.json')]
+    if not files:
+        print(f'Нет шаблонов для проекта {args.project_id} в архиве.')
+        return
+    out_zip = args.out or f"{args.project_id}_templates.zip"
+    with zipfile.ZipFile(out_zip, 'w') as zf:
+        for filename in files:
+            file_path = os.path.join(base_dir, filename)
+            meta_path = file_path + '.meta.json'
+            zf.write(file_path, arcname=filename)
+            if os.path.exists(meta_path):
+                zf.write(meta_path, arcname=filename + '.meta.json')
+    print(f'Экспортировано в архив: {out_zip}')
+
+def federation_import_templates(args):
+    import os
+    import zipfile
+    import datetime
+    archive_dir = f"archive/projects/{args.project_id}/templates/"
+    os.makedirs(archive_dir, exist_ok=True)
+    with zipfile.ZipFile(args.archive, 'r') as zf:
+        for member in zf.namelist():
+            target_path = os.path.join(archive_dir, member)
+            # Если файл уже есть — не затирать, а создать версию
+            if os.path.exists(target_path) and not member.endswith('.meta.json'):
+                name, ext = member.rsplit('.', 1)
+                version = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                new_name = f"{name}_imported_{version}.{ext}"
+                target_path = os.path.join(archive_dir, new_name)
+            with open(target_path, 'wb') as f:
+                f.write(zf.read(member))
+    print(f'Импортировано шаблонов в архив проекта {args.project_id} из {args.archive}')
+
+def audit_templates(args):
+    import os
+    import json
+    import datetime
+    base_dir = f"archive/projects/{args.project_id}/templates/" if args.archive else f"memory-bank/projects/{args.project_id}/templates/"
+    if not os.path.exists(base_dir):
+        print(f'Нет шаблонов для проекта {args.project_id} в {"архиве" if args.archive else "рабочей папке"}.')
+        return
+    files = [f for f in os.listdir(base_dir) if not f.endswith('.meta.json')]
+    if not files:
+        print(f'Нет шаблонов для проекта {args.project_id} в {"архиве" if args.archive else "рабочей папке"}.')
+        return
+    seen = {}
+    dups = []
+    outdated = []
+    no_meta = []
+    now = datetime.datetime.now()
+    for filename in files:
+        meta_path = os.path.join(base_dir, filename + '.meta.json')
+        meta = {}
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                try:
+                    meta = json.load(f)
+                except Exception:
+                    meta = {}
+        else:
+            no_meta.append(filename)
+        key = (meta.get('source', '-'), meta.get('origin', '-'), meta.get('filename', filename))
+        if key in seen:
+            dups.append((filename, seen[key]))
+        else:
+            seen[key] = filename
+        # Проверка на устаревание (старше 180 дней)
+        v = meta.get('version')
+        if v:
+            try:
+                dt = datetime.datetime.strptime(v[:8], '%Y%m%d')
+                if (now - dt).days > 180:
+                    outdated.append(filename)
+            except Exception:
+                pass
+    print(f'Аудит шаблонов для проекта {args.project_id} ("архив" if args.archive else "рабочая папка"):')
+    if dups:
+        print('Дубликаты шаблонов:')
+        for f1, f2 in dups:
+            print(f'  - {f1} и {f2} (одинаковый source/origin/filename)')
+    else:
+        print('Дубликаты не найдены.')
+    if outdated:
+        print('Устаревшие шаблоны (старше 180 дней):')
+        for f in outdated:
+            print(f'  - {f}')
+    else:
+        print('Устаревших шаблонов не найдено.')
+    if no_meta:
+        print('Шаблоны без метаданных:')
+        for f in no_meta:
+            print(f'  - {f}')
+    else:
+        print('Все шаблоны содержат метаданные.')
+    print('Рекомендации:')
+    if dups:
+        print('- Удалите или переименуйте дубликаты.')
+    if outdated:
+        print('- Проверьте актуальность устаревших шаблонов.')
+    if no_meta:
+        print('- Добавьте метаданные к шаблонам.')
+    if not (dups or outdated or no_meta):
+        print('- Всё в порядке!')
+
 def main():
     parser = argparse.ArgumentParser(description="AI-ассистент и CLI для Memory Bank")
     subparsers = parser.add_subparsers()
@@ -650,6 +804,32 @@ def main():
     parser_batch_export = subparsers.add_parser('batch-export-templates-from-archive', help='Пакетно экспортировать все шаблоны из архива в рабочую папку проекта')
     parser_batch_export.add_argument('--project-id', required=True, help='ID проекта')
     parser_batch_export.set_defaults(func=batch_export_templates_from_archive)
+
+    parser_list = subparsers.add_parser('list-templates', help='Показать список шаблонов и их метаданных')
+    parser_list.add_argument('--project-id', required=True, help='ID проекта')
+    parser_list.add_argument('--archive', action='store_true', help='Искать в архиве (по умолчанию — в рабочей папке)')
+    parser_list.set_defaults(func=list_templates)
+
+    parser_remove = subparsers.add_parser('remove-template', help='Удалить шаблон из архива или рабочей папки проекта')
+    parser_remove.add_argument('--project-id', required=True, help='ID проекта')
+    parser_remove.add_argument('--filename', required=True, help='Имя файла шаблона')
+    parser_remove.add_argument('--archive', action='store_true', help='Удалять из архива (по умолчанию — из рабочей папки)')
+    parser_remove.set_defaults(func=remove_template)
+
+    parser_fed_export = subparsers.add_parser('federation-export-templates', help='Экспортировать все шаблоны проекта в zip-архив для federation/import')
+    parser_fed_export.add_argument('--project-id', required=True, help='ID проекта')
+    parser_fed_export.add_argument('--out', help='Имя выходного zip-архива')
+    parser_fed_export.set_defaults(func=federation_export_templates)
+
+    parser_fed_import = subparsers.add_parser('federation-import-templates', help='Импортировать шаблоны из zip-архива в архив проекта')
+    parser_fed_import.add_argument('--project-id', required=True, help='ID проекта')
+    parser_fed_import.add_argument('--archive', required=True, help='Путь к zip-архиву шаблонов')
+    parser_fed_import.set_defaults(func=federation_import_templates)
+
+    parser_audit = subparsers.add_parser('audit-templates', help='Аудит шаблонов: поиск дубликатов, устаревших версий, отсутствия метаданных')
+    parser_audit.add_argument('--project-id', required=True, help='ID проекта')
+    parser_audit.add_argument('--archive', action='store_true', help='Проверять архив (по умолчанию — рабочая папка)')
+    parser_audit.set_defaults(func=audit_templates)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
