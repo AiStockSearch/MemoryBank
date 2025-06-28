@@ -28,6 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from cursor_rules.fs_rules import list_rules, create_rule, update_rule, delete_rule, export_rules_zip, import_rules_zip, get_rule_changelog, rollback_rule
 from cursor_rules.mdc_parser import validate_mdc
 import base64
+import httpx
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -53,6 +54,34 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 WHITELIST_PATHS = {'/auth/login', '/auth/register'}
+
+# In-memory хранилище webhook-URL (можно заменить на БД)
+registered_webhooks = set()
+
+@app.post('/webhooks/register', dependencies=[Depends(verify_api_key)])
+async def register_webhook(url: str = Body(..., embed=True)):
+    registered_webhooks.add(url)
+    return {"status": "registered", "url": url}
+
+@app.post('/webhooks/unregister', dependencies=[Depends(verify_api_key)])
+async def unregister_webhook(url: str = Body(..., embed=True)):
+    registered_webhooks.discard(url)
+    return {"status": "unregistered", "url": url}
+
+async def send_rule_webhook(event: str, path: str, meta: dict, user_id: str, reason: str = ""):
+    payload = {
+        "event": event,  # create/update/delete/import/rollback
+        "path": path,
+        "meta": meta,
+        "user_id": user_id,
+        "reason": reason
+    }
+    for url in list(registered_webhooks):
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(url, json=payload, timeout=5)
+        except Exception as e:
+            print(f"Webhook send error to {url}: {e}")
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -147,12 +176,15 @@ async def update_rules(req: RuleRequest, user_id: str = Header(None, alias="X-US
         if errors:
             raise HTTPException(status_code=400, detail={"rule": meta.get('description'), "errors": errors})
         reason = rule.get('reason', 'bulk update')
+        # Callback для webhooks
+        def cb(event, path, meta, user_id, reason):
+            asyncio.create_task(send_rule_webhook(event, path, meta, user_id, reason))
         # Если есть путь, обновляем, иначе создаём
         if 'path' in rule and rule['path']:
-            update_rule(rule['path'], meta, body, user_id=user_id, reason=reason)
+            update_rule(rule['path'], meta, body, user_id=user_id, reason=reason, on_change=cb)
             results.append({'status': 'updated', 'path': rule['path']})
         else:
-            path = create_rule(meta, body, filename=filename, user_id=user_id, reason=reason)
+            path = create_rule(meta, body, filename=filename, user_id=user_id, reason=reason, on_change=cb)
             results.append({'status': 'created', 'path': path})
     msg = "Обновлены правила (MDC)"
     await notify_ws_clients(msg)
@@ -1862,7 +1894,9 @@ def batch_save_and_commit(items: list, item_type: str, action: str, author: str,
 @app.delete('/rules', dependencies=[Depends(verify_api_key)])
 async def delete_rule_endpoint(path: str = Query(..., description="Путь к MDC-правилу для удаления"), user_id: str = Header(None, alias="X-USER-ID")):
     logger.info(f"Удаление MDC-правила: {path}")
-    delete_rule(path, user_id=user_id, reason="delete via API")
+    def cb(event, path, meta, user_id, reason):
+        asyncio.create_task(send_rule_webhook(event, path, meta, user_id, reason))
+    delete_rule(path, user_id=user_id, reason="delete via API", on_change=cb)
     msg = f"Удалено правило: {path}"
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
@@ -1892,7 +1926,9 @@ async def import_rules_endpoint(file: UploadFile = File(...), user_id: str = Hea
                     errors.append({"file": name, "errors": errs})
     if errors:
         raise HTTPException(status_code=400, detail=errors)
-    count = import_rules_zip(zip_bytes, user_id=user_id, reason="import via API")
+    def cb(event, path, meta, user_id, reason):
+        asyncio.create_task(send_rule_webhook(event, path, meta, user_id, reason))
+    count = import_rules_zip(zip_bytes, user_id=user_id, reason="import via API", on_change=cb)
     msg = f"Импортировано правил: {count}"
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
@@ -1908,7 +1944,9 @@ async def rule_rollback(
     commit: str = Body(..., embed=True),
     user_id: str = Header(None, alias="X-USER-ID")
 ):
-    ok = rollback_rule(path, commit)
+    def cb(event, path, meta, user_id, reason):
+        asyncio.create_task(send_rule_webhook(event, path, meta, user_id, reason))
+    ok = rollback_rule(path, commit, on_change=cb)
     if not ok:
         raise HTTPException(status_code=500, detail="Ошибка отката git")
     msg = f"Откат правила {path} к {commit}"

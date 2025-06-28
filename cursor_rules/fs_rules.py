@@ -26,7 +26,7 @@ def list_rules(base_dir: str = RULES_DIR) -> List[Dict[str, Any]]:
     return rules
 
 
-def create_rule(meta: Dict[str, Any], body: str, base_dir: str = RULES_DIR, filename: Optional[str] = None, user_id: str = "system", reason: str = "") -> str:
+def create_rule(meta: Dict[str, Any], body: str, base_dir: str = RULES_DIR, filename: Optional[str] = None, user_id: str = "system", reason: str = "", on_change=None) -> str:
     """
     Создаёт новое MDC-правило в base_dir. Возвращает путь к файлу.
     """
@@ -41,10 +41,12 @@ def create_rule(meta: Dict[str, Any], body: str, base_dir: str = RULES_DIR, file
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(generate_mdc_file(data))
     commit_rule_change(filepath, 'create', user_id, reason)
+    if on_change:
+        on_change('create', filepath, meta, user_id, reason)
     return filepath
 
 
-def update_rule(filepath: str, meta: Dict[str, Any], body: str, user_id: str = "system", reason: str = "") -> None:
+def update_rule(filepath: str, meta: Dict[str, Any], body: str, user_id: str = "system", reason: str = "", on_change=None) -> None:
     """
     Обновляет существующий MDC-файл по пути filepath.
     """
@@ -52,15 +54,19 @@ def update_rule(filepath: str, meta: Dict[str, Any], body: str, user_id: str = "
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(generate_mdc_file(data))
     commit_rule_change(filepath, 'update', user_id, reason)
+    if on_change:
+        on_change('update', filepath, meta, user_id, reason)
 
 
-def delete_rule(filepath: str, user_id: str = "system", reason: str = "") -> None:
+def delete_rule(filepath: str, user_id: str = "system", reason: str = "", on_change=None) -> None:
     """
     Удаляет MDC-файл по пути filepath.
     """
     if os.path.exists(filepath):
         os.remove(filepath)
         commit_rule_change(filepath, 'delete', user_id, reason)
+        if on_change:
+            on_change('delete', filepath, {}, user_id, reason)
 
 
 def export_rules_zip(base_dir: str = RULES_DIR) -> bytes:
@@ -80,7 +86,7 @@ def export_rules_zip(base_dir: str = RULES_DIR) -> bytes:
     return zip_buffer.read()
 
 
-def import_rules_zip(zip_bytes: bytes, base_dir: str = RULES_DIR, user_id: str = "system", reason: str = "") -> int:
+def import_rules_zip(zip_bytes: bytes, base_dir: str = RULES_DIR, user_id: str = "system", reason: str = "", on_change=None) -> int:
     """
     Импортирует zip-архив с MDC-правилами в base_dir. Перезаписывает существующие.
     Возвращает количество импортированных файлов.
@@ -94,6 +100,14 @@ def import_rules_zip(zip_bytes: bytes, base_dir: str = RULES_DIR, user_id: str =
                 with open(out_path, 'wb') as f:
                     f.write(zipf.read(name))
                 commit_rule_change(out_path, 'import', user_id, reason)
+                if on_change:
+                    # Парсим meta для webhook
+                    try:
+                        rule = parse_mdc_file(out_path)
+                        meta = rule['meta']
+                    except Exception:
+                        meta = {}
+                    on_change('import', out_path, meta, user_id, reason)
                 count += 1
     return count
 
@@ -123,13 +137,21 @@ def get_rule_changelog(path: str) -> list:
         return [{"error": str(e)}]
 
 
-def rollback_rule(path: str, commit: str) -> bool:
+def rollback_rule(path: str, commit: str, on_change=None) -> bool:
     """
     Откатывает MDC-правило к версии commit (git checkout <commit> -- <path>).
     """
     try:
         subprocess.run(["git", "checkout", commit, "--", path], check=True)
         commit_rule_change(path, 'rollback', reason=f'rollback to {commit}')
+        if on_change:
+            # Парсим meta для webhook
+            try:
+                rule = parse_mdc_file(path)
+                meta = rule['meta']
+            except Exception:
+                meta = {}
+            on_change('rollback', path, meta, 'system', f'rollback to {commit}')
         return True
     except Exception as e:
         print(f"Git rollback error: {e}")
