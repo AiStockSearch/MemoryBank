@@ -14,6 +14,8 @@ import shutil
 import datetime
 import subprocess
 import glob
+import hashlib
+import boto3
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -27,6 +29,11 @@ logger = logging.getLogger("mcp_server")
 
 # Хранилище подключённых WebSocket-клиентов
 ws_clients = set()
+
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
+S3_BUCKET = os.getenv("S3_BUCKET")
 
 def verify_api_key(request: Request):
     key = request.headers.get("X-API-KEY")
@@ -630,4 +637,63 @@ async def get_history(
     params.append(limit)
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
-        return [dict(row) for row in rows] 
+        return [dict(row) for row in rows]
+
+@app.post('/files/upload', dependencies=[Depends(verify_api_key)])
+async def upload_file(
+    project_id: int,
+    file: UploadFile = File(...),
+    user_id: str = Header(None, alias="X-USER-ID")
+):
+    content = await file.read()
+    file_hash = hashlib.sha256(content).hexdigest()
+    file_path = f"docs/{file.filename}"
+    s3_url = None
+    # Загрузка в S3/minio если настроено
+    if S3_ENDPOINT and S3_ACCESS_KEY and S3_SECRET_KEY and S3_BUCKET:
+        s3 = boto3.client('s3', endpoint_url=S3_ENDPOINT, aws_access_key_id=S3_ACCESS_KEY, aws_secret_access_key=S3_SECRET_KEY)
+        s3.put_object(Bucket=S3_BUCKET, Key=file.filename, Body=content)
+        s3_url = f"{S3_ENDPOINT}/{S3_BUCKET}/{file.filename}"
+    else:
+        with open(file_path, 'wb') as f:
+            f.write(content)
+    # Определяем версию
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        vrow = await conn.fetchrow('SELECT max(version) as v FROM file_versions WHERE file_path = $1 AND project_id = $2', file.filename, project_id)
+        version = (vrow['v'] or 0) + 1
+        await conn.execute('''INSERT INTO file_versions (project_id, file_path, version, hash, user_id, s3_url) VALUES ($1, $2, $3, $4, $5, $6)''',
+            project_id, file.filename, version, file_hash, user_id, s3_url)
+    return {"status": "uploaded", "file": file.filename, "version": version, "s3_url": s3_url}
+
+@app.get('/files/versions')
+async def get_file_versions(project_id: int, file_path: str):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('SELECT version, hash, user_id, s3_url, created_at FROM file_versions WHERE project_id = $1 AND file_path = $2 ORDER BY version DESC', project_id, file_path)
+        return [{"version": r["version"], "hash": r["hash"], "user_id": r["user_id"], "s3_url": r["s3_url"], "created_at": r["created_at"]} for r in rows]
+
+@app.post('/files/rollback')
+async def rollback_file(project_id: int, file_path: str, version: int, user_id: str = Header(None, alias="X-USER-ID")):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT hash, s3_url FROM file_versions WHERE project_id = $1 AND file_path = $2 AND version = $3', project_id, file_path, version)
+        if not row:
+            raise HTTPException(status_code=404, detail="Версия файла не найдена")
+        # Восстанавливаем файл из S3 или локально
+        if row['s3_url']:
+            import requests
+            resp = requests.get(row['s3_url'])
+            content = resp.content
+        else:
+            with open(f"docs/{file_path}", 'rb') as f:
+                content = f.read()
+        # Перезаписываем файл
+        with open(f"docs/{file_path}", 'wb') as f:
+            f.write(content)
+        # Сохраняем новую версию (rollback)
+        vrow = await conn.fetchrow('SELECT max(version) as v FROM file_versions WHERE file_path = $1 AND project_id = $2', file_path, project_id)
+        new_version = (vrow['v'] or 0) + 1
+        await conn.execute('''INSERT INTO file_versions (project_id, file_path, version, hash, user_id, s3_url) VALUES ($1, $2, $3, $4, $5, $6)''',
+            project_id, file_path, new_version, row['hash'], user_id, row['s3_url'])
+    return {"status": "rolled_back", "file": file_path, "version": version} 
