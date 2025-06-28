@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from cacd import CACD
 from typing import Optional, List, Any
 import json
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 import logging
 import os
 import pync
@@ -649,5 +649,49 @@ async def merge_memory_bank(
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 shutil.copy2(os.path.join(root, f), target_path)
         return {'status': 'merged', 'diff': diff}
+
+@app.post('/memory-bank/rollback')
+async def rollback_memory_bank(snapshot: UploadFile = File(...)):
+    import zipfile, os, shutil, tempfile
+    # Удаляем текущую memory-bank/
+    if os.path.exists('memory-bank'):
+        shutil.rmtree('memory-bank')
+    # Распаковываем архив в memory-bank/
+    with zipfile.ZipFile(snapshot.file) as zf:
+        zf.extractall('memory-bank/')
+        restored_files = zf.namelist()
+    return {'status': 'rolled back', 'restored_files': restored_files}
+
+@app.post('/memory-bank/batch')
+async def batch_apply_memory_bank(batch: UploadFile = File(...)):
+    import zipfile, os
+    added = []
+    with zipfile.ZipFile(batch.file) as zf:
+        for member in zf.namelist():
+            if member.endswith('/'):
+                continue
+            target_path = os.path.join('memory-bank', member)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with open(target_path, 'wb') as out_f:
+                out_f.write(zf.read(member))
+            added.append(member)
+    return {'status': 'batch applied', 'files': added}
+
+@app.get('/memory-bank/federation/pull')
+async def federation_pull_knowledge(file: str):
+    import os
+    path = os.path.join('memory-bank', 'knowledge_packages', file)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='Knowledge package not found')
+    return FileResponse(path, filename=file)
+
+@app.post('/memory-bank/federation/push')
+async def federation_push_knowledge(file: UploadFile = File(...)):
+    import os
+    path = os.path.join('memory-bank', 'knowledge_packages', file.filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as out_f:
+        out_f.write(await file.read())
+    return {'status': 'uploaded', 'file': file.filename}
 
 app.include_router(router)
