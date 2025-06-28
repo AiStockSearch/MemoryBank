@@ -8,4 +8,6 @@ pytest
 asyncpg
 pgvector
 pync
-strawberry-graphql 
+strawberry-graphql
+passlib[bcrypt]
+python-jose 

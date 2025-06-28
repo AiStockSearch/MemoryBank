@@ -1,0 +1,1 @@
+[2024-06-18] feat: Добавлены endpoint'ы /auth/register и /auth/login с JWT, обновлена документация, задачи зафиксированы в TASKS.md 

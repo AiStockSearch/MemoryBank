@@ -22,6 +22,8 @@ import strawberry
 from strawberry.fastapi import GraphQLRouter
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
 import asyncio
+from passlib.context import CryptContext
+from jose import jwt, JWTError
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -41,6 +43,11 @@ S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET")
 
+SECRET_KEY = os.getenv("JWT_SECRET", "supersecretjwtkey")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def verify_api_key(request: Request):
     key = request.headers.get("X-API-KEY")
     if key != API_KEY:
@@ -57,6 +64,15 @@ class ProjectCreateRequest(BaseModel):
     name: str
     description: str
     origin: str
+
+class UserRegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserLoginRequest(BaseModel):
+    username: str
+    password: str
 
 DEFAULT_RULES = [
     {"id": "rule_default_priority", "type": "priority", "value": "medium", "description": "Default priority for new projects"}
@@ -1266,4 +1282,32 @@ class Subscription:
             deleted_template_subscribers.remove(queue)
 
 schema = strawberry.Schema(Query, Mutation, Subscription)
-app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql") 
+app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql")
+
+@app.post('/auth/register')
+async def register_user(req: UserRegisterRequest):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        # Проверка уникальности
+        row = await conn.fetchrow('SELECT id FROM users WHERE username = $1 OR email = $2', req.username, req.email)
+        if row:
+            raise HTTPException(status_code=409, detail="Пользователь с таким именем или email уже существует")
+        password_hash = pwd_context.hash(req.password)
+        await conn.execute(
+            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)',
+            req.username, req.email, password_hash
+        )
+    return {"status": "registered"}
+
+@app.post('/auth/login')
+async def login_user(req: UserLoginRequest):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT id, username, password_hash, role FROM users WHERE username = $1', req.username)
+        if not row or not pwd_context.verify(req.password, row['password_hash']):
+            raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+        user_id = row['id']
+        role = row['role']
+        access_token_expires = datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        token = jwt.encode({"sub": str(user_id), "username": req.username, "role": role, "exp": access_token_expires}, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "token_type": "bearer"} 

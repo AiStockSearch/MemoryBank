@@ -113,6 +113,16 @@ CREATE_TABLES_SQL = [
         s3_url TEXT,
         created_at TIMESTAMP DEFAULT now()
     )
+    ''',
+    '''
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT now()
+    )
     '''
 ]
 
