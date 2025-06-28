@@ -117,13 +117,14 @@ async def create_project(req: ProjectCreateRequest):
             req.name, req.description, req.origin
         )
         project_id = row["id"]
-        # Инициализация дефолтных правил
-        for rule in DEFAULT_RULES:
+        # Копируем глобальные правила
+        global_rules = await conn.fetch('SELECT * FROM cursor_rules WHERE project_id IS NULL')
+        for rule in global_rules:
             await conn.execute(
                 'INSERT INTO cursor_rules (id, project_id, type, value, description) VALUES ($1, $2, $3, $4, $5)',
-                rule["id"], project_id, rule["type"], rule["value"], rule["description"]
+                rule["id"] + f"_{project_id}", project_id, rule["type"], rule["value"], rule["description"]
             )
-        # Инициализация дефолтных шаблонов
+        # Инициализация дефолтных шаблонов (аналогично можно сделать для глобальных шаблонов)
         for tpl in DEFAULT_TEMPLATES:
             await conn.execute(
                 'INSERT INTO templates (project_id, name, repo_url, tags) VALUES ($1, $2, $3, $4)',
@@ -803,4 +804,28 @@ async def recommend_embeddings(
         params.append(vector)
         params.append(top_k)
         rows = await conn.fetch(query, *params)
-        return [{"entity_id": r["task_id"], "description": r["description"]} for r in rows] 
+        return [{"entity_id": r["task_id"], "description": r["description"]} for r in rows]
+
+@app.get('/rules/global', dependencies=[Depends(verify_api_key)])
+async def get_global_rules():
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('SELECT * FROM cursor_rules WHERE project_id IS NULL')
+        return [dict(row) for row in rows]
+
+@app.post('/rules/global', dependencies=[Depends(verify_api_key)])
+async def update_global_rules(rules: list, user_id: str = Header(None, alias="X-USER-ID")):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute('DELETE FROM cursor_rules WHERE project_id IS NULL')
+        for rule in rules:
+            await conn.execute(
+                'INSERT INTO cursor_rules (id, project_id, type, value, description) VALUES ($1, NULL, $2, $3, $4)',
+                rule["id"], rule["type"], rule["value"], rule.get("description", "")
+            )
+        # Логируем изменение глобальных правил
+        await conn.execute(
+            'INSERT INTO history (project_id, user_id, action, details) VALUES (NULL, $1, $2, $3)',
+            user_id, 'update_global_rules', json.dumps({'rules': rules})
+        )
+    return {"status": "global_rules_updated"} 
