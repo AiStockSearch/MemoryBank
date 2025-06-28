@@ -25,6 +25,8 @@ import asyncio
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
+from cursor_rules.fs_rules import list_rules, create_rule, update_rule, delete_rule, export_rules_zip, import_rules_zip, get_rule_changelog, rollback_rule
+from cursor_rules.mdc_parser import validate_mdc
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -133,25 +135,32 @@ async def get_context(task_id: str):
 
 @app.post('/rules', dependencies=[Depends(verify_api_key)])
 async def update_rules(req: RuleRequest, user_id: str = Header(None, alias="X-USER-ID")):
-    logger.info("Обновление правил")
-    if len(req.rules) > 1:
-        batch_save_and_commit(req.rules, 'rule', 'update', user_id or 'system', 'bulk update')
-    else:
-        for rule in req.rules:
-            save_and_commit_rule(rule.get('id'), rule, 'update', user_id or 'system', 'bulk update')
-    with open(cacd.rules_path, 'w') as f:
-        json.dump(req.rules, f, indent=2)
-    cacd._load_rules()
-    msg = "Обновлены правила проекта"
+    logger.info("Обновление правил (MDC)")
+    results = []
+    for rule in req.rules:
+        meta = rule.get('meta') or {}
+        body = rule.get('body') or ''
+        filename = rule.get('filename') if 'filename' in rule else None
+        data = {'meta': meta, 'body': body}
+        errors = validate_mdc(data)
+        if errors:
+            raise HTTPException(status_code=400, detail={"rule": meta.get('description'), "errors": errors})
+        reason = rule.get('reason', 'bulk update')
+        # Если есть путь, обновляем, иначе создаём
+        if 'path' in rule and rule['path']:
+            update_rule(rule['path'], meta, body, user_id=user_id, reason=reason)
+            results.append({'status': 'updated', 'path': rule['path']})
+        else:
+            path = create_rule(meta, body, filename=filename, user_id=user_id, reason=reason)
+            results.append({'status': 'created', 'path': path})
+    msg = "Обновлены правила (MDC)"
     await notify_ws_clients(msg)
     notify_mac("MCP", msg)
-    return {"status": "rules updated"}
+    return {"status": "rules updated", "results": results}
 
 @app.get('/rules', dependencies=[Depends(verify_api_key)])
 async def get_rules():
-    with open(cacd.rules_path, 'r') as f:
-        rules = json.load(f)
-    return rules
+    return list_rules()
 
 @app.get('/readme', response_class=HTMLResponse)
 def get_readme():
@@ -1773,3 +1782,60 @@ def batch_save_and_commit(items: list, item_type: str, action: str, author: str,
         ids = ', '.join([item.get('id') or item.get('name') for item in items])
         msg = f"[{item_type}][batch-{action}] {ids} {author}: {reason}"
         subprocess.run(['git', 'commit', '-m', msg], check=False) 
+
+@app.delete('/rules', dependencies=[Depends(verify_api_key)])
+async def delete_rule_endpoint(path: str = Query(..., description="Путь к MDC-правилу для удаления"), user_id: str = Header(None, alias="X-USER-ID")):
+    logger.info(f"Удаление MDC-правила: {path}")
+    delete_rule(path, user_id=user_id, reason="delete via API")
+    msg = f"Удалено правило: {path}"
+    await notify_ws_clients(msg)
+    notify_mac("MCP", msg)
+    return {"status": "deleted", "path": path}
+
+@app.get('/rules/export', dependencies=[Depends(verify_api_key)])
+async def export_rules_endpoint():
+    zip_bytes = export_rules_zip()
+    return StreamingResponse(io.BytesIO(zip_bytes), media_type='application/zip', headers={
+        'Content-Disposition': 'attachment; filename="cursor_rules_export.zip"'
+    })
+
+@app.post('/rules/import', dependencies=[Depends(verify_api_key)])
+async def import_rules_endpoint(file: UploadFile = File(...), user_id: str = Header(None, alias="X-USER-ID")):
+    zip_bytes = await file.read()
+    # Валидация всех MDC-файлов перед импортом
+    import zipfile
+    import io
+    from cursor_rules.mdc_parser import parse_mdc_file
+    errors = []
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zipf:
+        for name in zipf.namelist():
+            if name.endswith('.mdc'):
+                data = parse_mdc_file(zipf.extract(name))
+                errs = validate_mdc(data)
+                if errs:
+                    errors.append({"file": name, "errors": errs})
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+    count = import_rules_zip(zip_bytes, user_id=user_id, reason="import via API")
+    msg = f"Импортировано правил: {count}"
+    await notify_ws_clients(msg)
+    notify_mac("MCP", msg)
+    return {"status": "imported", "count": count}
+
+@app.get('/rules/changelog', dependencies=[Depends(verify_api_key)])
+async def rule_changelog(path: str = Query(..., description="Путь к MDC-правилу")):
+    return get_rule_changelog(path)
+
+@app.post('/rules/rollback', dependencies=[Depends(verify_api_key)])
+async def rule_rollback(
+    path: str = Body(..., embed=True),
+    commit: str = Body(..., embed=True),
+    user_id: str = Header(None, alias="X-USER-ID")
+):
+    ok = rollback_rule(path, commit)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Ошибка отката git")
+    msg = f"Откат правила {path} к {commit}"
+    await notify_ws_clients(msg)
+    notify_mac("MCP", msg)
+    return {"status": "rolled back", "path": path, "commit": commit}

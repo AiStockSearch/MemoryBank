@@ -5,10 +5,13 @@ import io
 import zipfile
 import tempfile
 from subprocess import check_output
+import os
 
 client = TestClient(app)
 
 HEADERS = {"X-API-KEY": API_KEY}
+
+RULES_DIR = ".cursor/rules"
 
 def test_create_task():
     response = client.post("/tasks", json={"command": "test_cmd", "task_id": "test1"}, headers=HEADERS)
@@ -277,4 +280,53 @@ def test_batch_delete_templates(client):
     data = resp.json()["data"]["batchDeleteTemplates"]
     assert data["status"] == "ok"
     assert set(data["deletedIds"]) == {"tplBD1", "tplBD2"}
-    assert not data["errors"] 
+    assert not data["errors"]
+
+def test_rules_crud():
+    # 1. Создать правило
+    rule = {
+        "meta": {"description": "test rule", "alwaysApply": True},
+        "body": "- test body"
+    }
+    resp = client.post("/rules", json={"rules": [rule]}, headers=HEADERS)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "rules updated"
+    path = data["results"][0]["path"]
+    # 2. Получить список правил
+    resp = client.get("/rules", headers=HEADERS)
+    assert resp.status_code == 200
+    rules = resp.json()
+    assert any(r["meta"]["description"] == "test rule" for r in rules)
+    # 3. Удалить правило
+    resp = client.delete("/rules", params={"path": path}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "deleted"
+
+def test_rules_export_import():
+    # Создать несколько правил
+    rule1 = {"meta": {"description": "rule1"}, "body": "- body1"}
+    rule2 = {"meta": {"description": "rule2"}, "body": "- body2"}
+    client.post("/rules", json={"rules": [rule1, rule2]}, headers=HEADERS)
+    # Экспортировать zip
+    resp = client.get("/rules/export", headers=HEADERS)
+    assert resp.status_code == 200
+    zip_bytes = resp.content
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zipf:
+        names = zipf.namelist()
+        assert any(n.endswith(".mdc") for n in names)
+    # Удалить все правила
+    rules = client.get("/rules", headers=HEADERS).json()
+    for r in rules:
+        client.delete("/rules", params={"path": r["path"]}, headers=HEADERS)
+    # Импортировать zip
+    resp = client.post("/rules/import", files={"file": ("rules.zip", zip_bytes)}, headers=HEADERS)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "imported"
+    # Проверить, что правила восстановились
+    rules = client.get("/rules", headers=HEADERS).json()
+    assert any(r["meta"]["description"] == "rule1" for r in rules)
+    assert any(r["meta"]["description"] == "rule2" for r in rules)
+    # Очистить
+    for r in rules:
+        client.delete("/rules", params={"path": r["path"]}, headers=HEADERS) 
