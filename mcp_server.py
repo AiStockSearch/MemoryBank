@@ -1389,6 +1389,62 @@ class Mutation:
             results.append(RollbackResult(status="rolled back", rule_id=name, commit=commit))
         return BatchRollbackTemplatesResult(status="ok", results=results)
 
+    @strawberry.mutation
+    async def batch_delete_rules(self, ids: List[str], user_id: str) -> 'BatchDeleteResult':
+        import os, subprocess, datetime
+        deleted = []
+        errors = []
+        for rule_id in ids:
+            path = os.path.join('rules', f'{rule_id}.json')
+            if not os.path.exists(path):
+                errors.append(f"{rule_id}: not found")
+                continue
+            try:
+                os.remove(path)
+                subprocess.run(['git', 'add', path], check=False)
+                msg = f"[rule][delete] {rule_id} {user_id}: batch delete"
+                subprocess.run(['git', 'commit', '-m', msg], check=False)
+                deleted.append(rule_id)
+            except Exception as e:
+                errors.append(f"{rule_id}: {str(e)}")
+                await notify_conflict({
+                    "event": "conflict",
+                    "entity": "rule",
+                    "id": rule_id,
+                    "details": str(e),
+                    "initiator": user_id,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
+                })
+        return BatchDeleteResult(status="ok", deleted_ids=deleted, errors=errors)
+
+    @strawberry.mutation
+    async def batch_delete_templates(self, names: List[str], user_id: str) -> 'BatchDeleteResult':
+        import os, subprocess, datetime
+        deleted = []
+        errors = []
+        for name in names:
+            path = os.path.join('templates', f'{name}.json')
+            if not os.path.exists(path):
+                errors.append(f"{name}: not found")
+                continue
+            try:
+                os.remove(path)
+                subprocess.run(['git', 'add', path], check=False)
+                msg = f"[template][delete] {name} {user_id}: batch delete"
+                subprocess.run(['git', 'commit', '-m', msg], check=False)
+                deleted.append(name)
+            except Exception as e:
+                errors.append(f"{name}: {str(e)}")
+                await notify_conflict({
+                    "event": "conflict",
+                    "entity": "template",
+                    "id": name,
+                    "details": str(e),
+                    "initiator": user_id,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
+                })
+        return BatchDeleteResult(status="ok", deleted_ids=deleted, errors=errors)
+
 @strawberry.input
 class RuleInput:
     id: str
