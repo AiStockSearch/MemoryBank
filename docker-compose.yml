@@ -1,22 +1,39 @@
 version: '3.8'
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: cursor
+      POSTGRES_PASSWORD: cursorpass
+      POSTGRES_DB: cursordb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: ["postgres", "-c", "shared_preload_libraries=vector"]
   app:
     build: .
     command: uvicorn mcp_server:app --host 0.0.0.0 --port 8000
-    volumes:
-      - ./tasks.mdf:/app/tasks.mdf
-      - ./memory_bank.db:/app/memory_bank.db
-      - ./cursor_rules.json:/app/cursor_rules.json
-      - ./docs:/app/docs
+    depends_on:
+      - db
+    environment:
+      DB_DSN: "postgresql://cursor:cursorpass@db:5432/cursordb"
     ports:
       - "8000:8000"
+    volumes:
+      - ./cursor_rules.json:/app/cursor_rules.json
+      - ./docs:/app/docs
   mcp:
     build: .
     command: uvicorn mcp_server:app --host 0.0.0.0 --port 8001
+    depends_on:
+      - db
+    environment:
+      DB_DSN: "postgresql://cursor:cursorpass@db:5432/cursordb"
+    ports:
+      - "8001:8001"
     volumes:
-      - ./tasks.mdf:/app/tasks.mdf
-      - ./memory_bank.db:/app/memory_bank.db
       - ./cursor_rules.json:/app/cursor_rules.json
       - ./docs:/app/docs
-    ports:
-      - "8001:8001" 
+volumes:
+  pgdata: 

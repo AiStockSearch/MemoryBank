@@ -6,10 +6,10 @@ import asyncio
 
 class CACD:
     """
-    CACD — обработчик команд, задач, контекста и Cursor Rules (асинхронно).
+    CACD — обработчик команд, задач, контекста и Cursor Rules (асинхронно, PostgreSQL).
     """
-    def __init__(self, memory_db: str = 'memory_bank.db', rules_path: str = 'cursor_rules.json', tasks_path: str = 'tasks.mdf'):
-        self.memory = MemoryBank(memory_db)
+    def __init__(self, dsn=None, rules_path: str = 'cursor_rules.json', tasks_path: str = 'tasks.mdf'):
+        self.memory = MemoryBank(dsn)
         self.rules_path = rules_path
         self.tasks_path = tasks_path
         self.backlog: List[Dict[str, Any]] = []

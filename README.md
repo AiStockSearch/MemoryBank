@@ -189,3 +189,23 @@
 48. `mcp graphql subscribe rules --username user48 --project proj48 --retry 2`
 49. `mcp graphql mutation autofill-task --username user49 --project proj49 --notify email`
 50. `mcp graphql query tasks --username user50 --project proj50 --bulk --notify all`
+=======
+## Тестирование WebSocket и push-уведомлений
+
+### WebSocket
+
+1. Подключитесь к WebSocket:
+   ```python
+   import websockets
+   import asyncio
+
+   async def listen():
+       uri = "ws://localhost:8001/ws/notify"
+       async with websockets.connect(uri) as websocket:
+           while True:
+               msg = await websocket.recv()
+               print("WS notification:", msg)
+
+   asyncio.run(listen())
+   ```
+   

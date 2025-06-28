@@ -4,4 +4,7 @@ pydantic
 aiosqlite
 markdown
 httpx
-pytest 
+pytest
+asyncpg
+pgvector
+pync 
