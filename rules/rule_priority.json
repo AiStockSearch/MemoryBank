@@ -1,0 +1,6 @@
+{
+  "id": "rule_priority",
+  "type": "priority",
+  "value": "medium",
+  "description": "Default priority for new projects"
+}
