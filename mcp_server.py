@@ -1331,6 +1331,35 @@ class Mutation:
         batch_save_and_commit(items, 'template', 'update', user_id or 'system', 'bulk update (GraphQL)')
         return "ok"
 
+    @strawberry.mutation
+    async def batch_rollback_rules(self, ids: List[str], commit: str, user_id: str) -> 'BatchRollbackResult':
+        import subprocess, os, datetime
+        results = []
+        for rule_id in ids:
+            path = os.path.join('rules', f'{rule_id}.json')
+            if not os.path.exists(path):
+                results.append(RollbackResult(status="error", rule_id=rule_id, commit=commit, error="Правило не найдено"))
+                continue
+            result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+            if result.returncode != 0:
+                msg = f"Конфликт при batch-откате правила {rule_id} пользователем {user_id}: {result.stderr}"
+                await notify_conflict({
+                    "event": "conflict",
+                    "entity": "rule",
+                    "id": rule_id,
+                    "details": msg,
+                    "initiator": user_id,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
+                })
+                notify_mac("MCP: Конфликт", msg)
+                results.append(RollbackResult(status="conflict", rule_id=rule_id, commit=commit, error=result.stderr))
+                continue
+            msg = f"[rule] [rollback] {rule_id} {user_id}: batch rollback to {commit}"
+            subprocess.run(['git', 'add', path], check=False)
+            subprocess.run(['git', 'commit', '-m', msg], check=False)
+            results.append(RollbackResult(status="rolled back", rule_id=rule_id, commit=commit))
+        return BatchRollbackResult(status="ok", results=results)
+
 @strawberry.input
 class RuleInput:
     id: str
