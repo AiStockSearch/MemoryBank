@@ -1,7 +1,7 @@
 import argparse
 import sys
 import os
-from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec
+from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec, export_to_pdf, export_to_pptx
 from scripts.ai_assistant import get_tasks
 import pandas as pd
 
@@ -466,8 +466,21 @@ def cmd_review_spec(args):
             f.write(review)
         print(f'AI-ревью сохранено в {out_path}')
 
+def cmd_export_spec(args):
+    file_path = args.file or 'projectBrief.md'
+    out_path = args.out
+    fmt = args.format
+    if fmt == 'pdf':
+        export_to_pdf(file_path, out_path)
+        print(f'Экспортировано в PDF: {out_path}')
+    elif fmt == 'pptx':
+        export_to_pptx(file_path, out_path)
+        print(f'Презентация PPTX сгенерирована: {out_path}')
+    else:
+        print('Поддерживаются только форматы pdf и pptx')
+
 def main():
-    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec, autofill-spec, generate-csv-template, review-spec")
+    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec, autofill-spec, generate-csv-template, review-spec, export-spec")
     subparsers = parser.add_subparsers(dest="command")
 
     p_summary = subparsers.add_parser("summary", help="Сгенерировать summary по задаче или всем задачам")
@@ -511,6 +524,12 @@ def main():
     p_review_spec.add_argument("--file", help="Путь к файлу спецификации (по умолчанию projectBrief.md)")
     p_review_spec.add_argument("--out", help="Путь для сохранения AI-ревью (например, review.md)")
     p_review_spec.set_defaults(func=cmd_review_spec)
+
+    p_export_spec = subparsers.add_parser("export-spec", help="Экспортировать projectBrief.md/review.md в PDF или PPTX (презентацию)")
+    p_export_spec.add_argument("--file", help="Путь к файлу спецификации (по умолчанию projectBrief.md)")
+    p_export_spec.add_argument("--format", required=True, help="Формат экспорта: pdf или pptx")
+    p_export_spec.add_argument("--out", required=True, help="Путь для сохранения (например, projectBrief.pdf или .pptx)")
+    p_export_spec.set_defaults(func=cmd_export_spec)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

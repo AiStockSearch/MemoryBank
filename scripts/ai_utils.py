@@ -83,4 +83,20 @@ def generate_roadmap(tasks):
         end = t.get('end', '2024-06-30')
         status = 'done' if t.get('status','').lower() in ['done','completed'] else 'active'
         stages.append((stage, start, end, status))
-    return stages 
+    return stages
+
+def export_to_pdf(md_path, out_path):
+    # Заглушка: экспорт markdown в PDF (реализовать через markdown2pdf/pandoc)
+    with open(md_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(f'[PDF STUB]\n\n{content}')
+    log_action(f'Экспортировано в PDF: {out_path}')
+
+def export_to_pptx(md_path, out_path):
+    # Заглушка: экспорт markdown в PPTX (реализовать через python-pptx)
+    with open(md_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(f'[PPTX STUB]\n\n{content}')
+    log_action(f'Презентация PPTX сгенерирована: {out_path}') 
