@@ -6,6 +6,7 @@ import zipfile
 import tempfile
 from subprocess import check_output
 import os
+import base64
 
 client = TestClient(app)
 
@@ -329,4 +330,97 @@ def test_rules_export_import():
     assert any(r["meta"]["description"] == "rule2" for r in rules)
     # Очистить
     for r in rules:
-        client.delete("/rules", params={"path": r["path"]}, headers=HEADERS) 
+        client.delete("/rules", params={"path": r["path"]}, headers=HEADERS)
+
+def gql(query, variables=None):
+    payload = {"query": query}
+    if variables:
+        payload["variables"] = variables
+    resp = client.post("/graphql", json=payload)
+    return resp
+
+def test_graphql_mdc_rules_crud():
+    # 1. Создать правило
+    mutation = '''
+    mutation Create($input: RuleMDCInput!, $userId: String!) {
+      createRuleMdc(input: $input, userId: $userId) { path meta body }
+    }
+    '''
+    variables = {"input": {"meta": {"description": "gql rule", "alwaysApply": True}, "body": "- gql body", "filename": "gql_rule.mdc"}, "userId": "tester"}
+    resp = gql(mutation, variables)
+    assert resp.status_code == 200
+    path = resp.json()["data"]["createRuleMdc"]["path"]
+    # 2. Получить список правил
+    query = """
+    query { rulesMdc { path meta body } }
+    """
+    resp = gql(query)
+    assert resp.status_code == 200
+    rules = resp.json()["data"]["rulesMdc"]
+    assert any(r["meta"]["description"] == "gql rule" for r in rules)
+    # 3. Получить одно правило
+    query = """
+    query Get($path: String!) { ruleMdc(path: $path) { meta body path } }
+    """
+    resp = gql(query, {"path": path})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["ruleMdc"]["meta"]["description"] == "gql rule"
+    # 4. Обновить правило
+    mutation = '''
+    mutation Update($input: RuleMDCInput!, $userId: String!) {
+      updateRuleMdc(input: $input, userId: $userId) { path meta body }
+    }
+    '''
+    variables = {"input": {"path": path, "meta": {"description": "gql rule updated"}, "body": "- updated"}, "userId": "tester"}
+    resp = gql(mutation, variables)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["updateRuleMdc"]["meta"]["description"] == "gql rule updated"
+    # 5. Changelog
+    query = """
+    query Get($path: String!) { changelogMdc(path: $path) { commit author date message } }
+    """
+    resp = gql(query, {"path": path})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["changelogMdc"]
+    # 6. Экспортировать zip
+    mutation = """
+    mutation { exportRulesMdc }
+    """
+    resp = gql(mutation)
+    assert resp.status_code == 200
+    zip_b64 = resp.json()["data"]["exportRulesMdc"]
+    zip_bytes = base64.b64decode(zip_b64)
+    # 7. Удалить правило
+    mutation = '''
+    mutation Delete($path: String!, $userId: String!) {
+      deleteRuleMdc(path: $path, userId: $userId)
+    }
+    '''
+    resp = gql(mutation, {"path": path, "userId": "tester"})
+    assert resp.status_code == 200
+    # 8. Импортировать zip
+    mutation = '''
+    mutation Import($fileB64: String!, $userId: String!) {
+      importRulesMdc(fileB64: $fileB64, userId: $userId)
+    }
+    '''
+    resp = gql(mutation, {"fileB64": base64.b64encode(zip_bytes).decode(), "userId": "tester"})
+    assert resp.status_code == 200
+    # 9. Проверить, что правило восстановилось
+    query = """
+    query { rulesMdc { path meta body } }
+    """
+    resp = gql(query)
+    assert resp.status_code == 200
+    assert any(r["meta"]["description"] == "gql rule updated" for r in resp.json()["data"]["rulesMdc"])
+    # 10. Rollback (если есть хотя бы 2 коммита)
+    changelog = gql("query Get($path: String!) { changelogMdc(path: $path) { commit } }", {"path": path}).json()["data"]["changelogMdc"]
+    if len(changelog) > 1:
+        old_commit = changelog[-1]["commit"]
+        mutation = '''
+        mutation Rollback($path: String!, $commit: String!, $userId: String!) {
+          rollbackRuleMdc(path: $path, commit: $commit, userId: $userId)
+        }
+        '''
+        resp = gql(mutation, {"path": path, "commit": old_commit, "userId": "tester"})
+        assert resp.status_code == 200 
