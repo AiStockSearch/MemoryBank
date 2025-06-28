@@ -1,0 +1,11 @@
+{
+  "origin": "<project_id>",
+  "owner": "<owner>",
+  "created": "<YYYY-MM-DD>",
+  "version": "<version>",
+  "description": "<Краткое описание проекта>",
+  "status": "active|archived|imported",
+  "source": "local|federation|import",
+  "last_updated": "<YYYY-MM-DD>",
+  "tags": ["ai", "mcp", "federation"]
+}

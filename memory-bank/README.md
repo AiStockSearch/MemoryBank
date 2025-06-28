@@ -1,6 +1,6 @@
 # Memory Bank
 
-> **Внимание:** Memory Bank — это не проект, а инфраструктурный слой знаний, подключаемый к каждому проекту. Для каждого проекта существует свой Origin (источник, владелец, метаданные), локальные Cursor Rules и Memory Bank (или их snapshot/архив). При инициализации нового проекта, если нет локального Memory Bank, он подтягивается из глобального шаблона или Origin через federation/import. MCP обеспечивает обмен knowledge packages, шаблонов и best practices между проектами. Архивирование и federation — отдельные процессы, не смешивать с активными проектами.
+> **Внимание:** Memory Bank — это только шаблоны (template), core-файлы, инструкции и best practices для новых проектов. Не используйте memory-bank для обмена рабочими или архивными данными. Все federation/import/export, архивирование и восстановление выполняются только через archive/<origin>/ в корне репозитория.
 
 Memory Bank — модуль для хранения, генерации и обмена знаниями, решениями, паттернами и контекстом между проектами, AI-ассистентами и командой.
 
@@ -210,3 +210,14 @@ python scripts/init_memory_bank.py
 ```
 
 Команда создаёт папку memory-bank/ и все core-файлы с шаблонным содержимым (activeContext.md, decisionLog.md, productContext.md, progress.md, projectBrief.md, systemPatterns.md). 
+
+---
+
+# Onboarding: Быстрый старт для новых участников
+
+1. Ознакомьтесь с архитектурой хранения: archive/<origin>/ — для обмена и архивирования, memory-bank/ — только шаблоны и best practices.
+2. Для новых проектов используйте шаблоны из memory-bank/.
+3. Для обмена знаниями используйте только archive/<origin>/ и CLI-команды federation.
+4. Все операции federation/import/export выполняйте только по своему origin.
+5. Перед импортом делайте бэкап, проверяйте метаданные и фиксируйте действия в changelog/auditLog.
+6. В случае вопросов — обращайтесь к developer-primer.md и README.md в archive, memory-bank, federation. 

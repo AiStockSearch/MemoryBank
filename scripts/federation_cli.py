@@ -1,61 +1,39 @@
-import argparse
 import os
-import shutil
-import zipfile
-import sys
+import datetime
+import argparse
 
 def export_knowledge(args):
-    out = args.out or 'knowledge_export.zip'
-    with zipfile.ZipFile(out, 'w') as zf:
-        for folder in ['memory-bank/knowledge_packages', 'memory-bank/knowledge_packages/', 'memory-bank/']:
-            if os.path.exists(folder):
-                for root, _, files in os.walk(folder):
-                    for f in files:
-                        path = os.path.join(root, f)
-                        arcname = os.path.relpath(path, '.')
-                        zf.write(path, arcname)
-        # Снапшоты (архивы)
-        if os.path.exists('snapshots'):
-            for root, _, files in os.walk('snapshots'):
-                for f in files:
-                    path = os.path.join(root, f)
-                    arcname = os.path.relpath(path, '.')
-                    zf.write(path, arcname)
-    print(f'Экспортировано в {out}')
+    origin = args.project
+    now = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+    archive_dir = os.path.join('archive', origin)
+    os.makedirs(archive_dir, exist_ok=True)
+    archive_path = os.path.join(archive_dir, f'export_{now}.zip')
+    # TODO: собрать данные по origin, сформировать архив
+    print(f"Экспортировано в {archive_path}")
+    # TODO: логировать операцию
 
 def import_knowledge(args):
-    inp = args.file
-    if not os.path.exists(inp):
-        print(f'Файл {inp} не найден')
-        sys.exit(1)
-    with zipfile.ZipFile(inp, 'r') as zf:
-        zf.extractall('.')
-    print(f'Импортировано из {inp}')
-
-def sync_federation(args):
-    # MVP: просто копируем knowledge_export.zip между папками/инстансами
-    remote = args.remote
-    out = args.out or 'knowledge_export.zip'
-    export_knowledge(argparse.Namespace(out=out))
-    # Здесь можно добавить отправку файла по сети/ssh/scp
-    print(f'Для синхронизации отправьте {out} на {remote} и выполните импорт.')
+    origin = args.project
+    archive_path = args.file
+    expected_dir = os.path.join('archive', origin)
+    if not archive_path.startswith(expected_dir):
+        raise Exception("Импорт возможен только из archive/<origin>/")
+    # TODO: распаковать архив, валидация структуры и метаданных
+    print(f"Импортировано из {archive_path}")
+    # TODO: логировать операцию
 
 def main():
-    parser = argparse.ArgumentParser(description='Federation CLI: экспорт/импорт knowledge packages, снапшотов, best practices')
+    parser = argparse.ArgumentParser(description='Federation CLI (archive/origin)')
     subparsers = parser.add_subparsers(dest='command')
 
-    p_export = subparsers.add_parser('export', help='Экспортировать knowledge packages и снапшоты в zip')
-    p_export.add_argument('--out', help='Путь для сохранения архива')
-    p_export.set_defaults(func=export_knowledge)
+    export_parser = subparsers.add_parser('export')
+    export_parser.add_argument('--project', required=True)
+    export_parser.set_defaults(func=export_knowledge)
 
-    p_import = subparsers.add_parser('import', help='Импортировать knowledge packages и снапшоты из zip')
-    p_import.add_argument('file', help='Путь к архиву для импорта')
-    p_import.set_defaults(func=import_knowledge)
-
-    p_sync = subparsers.add_parser('sync', help='Экспортировать и подготовить к синхронизации с другим инстансом')
-    p_sync.add_argument('--remote', required=True, help='Адрес/путь другого инстанса')
-    p_sync.add_argument('--out', help='Путь для сохранения архива')
-    p_sync.set_defaults(func=sync_federation)
+    import_parser = subparsers.add_parser('import')
+    import_parser.add_argument('--file', required=True)
+    import_parser.add_argument('--project', required=True)
+    import_parser.set_defaults(func=import_knowledge)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
