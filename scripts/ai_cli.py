@@ -1,8 +1,9 @@
 import argparse
 import sys
 import os
-from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap
+from scripts.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec
 from scripts.ai_assistant import get_tasks
+import pandas as pd
 
 def cmd_summary(args):
     tasks = get_tasks()
@@ -277,8 +278,196 @@ def cmd_generate_spec(args):
         f.write(content)
     print(f'projectBrief.md сгенерирован по расширенному шаблону: {out_path}')
 
+def cmd_autofill_spec(args):
+    input_path = args.input
+    out_path = args.out or 'projectBrief.md'
+    use_mock = getattr(args, 'mock', False)
+    interactive = False
+
+    if not input_path and not use_mock:
+        print('Нет входных данных. Перехожу в интерактивный режим...')
+        interactive = True
+
+    if use_mock:
+        print('Нет входных данных — генерирую тестовые данные...')
+        import pandas as pd
+        # Примерные данные
+        problems = pd.DataFrame([
+            {'problem': 'High cost', 'segment': 'B2B', 'frequency': 30, 'source': 'survey'},
+            {'problem': 'UX is confusing', 'segment': 'B2C', 'frequency': 25, 'source': 'feedback'},
+            {'problem': 'Integration pain', 'segment': 'B2B', 'frequency': 20, 'source': 'support'},
+            {'problem': 'No mobile version', 'segment': 'SMB', 'frequency': 10, 'source': 'review'},
+            {'problem': 'Slow support', 'segment': 'B2C', 'frequency': 5, 'source': 'forum'},
+        ])
+        competitors = pd.DataFrame([
+            {'name': 'CompA', 'segment': 'B2B', 'killer_features': 'FastAPI, Support', 'price': '$$$', 'review': 'Очень быстрый API'},
+            {'name': 'CompB', 'segment': 'B2C', 'killer_features': 'UX, Mobile', 'price': '$$', 'review': 'Удобно, но дорого'},
+            {'name': 'CompC', 'segment': 'SMB', 'killer_features': 'Price, Integr.', 'price': '$', 'review': 'Дёшево, мало интеграций'},
+        ])
+        data = {'problems': problems, 'competitors': competitors}
+        # AI-логика работает с этими DataFrame
+        problems, clusters = ai_cluster_problems(problems)
+        graph_md = ai_generate_graphs(clusters)
+        bell_curve_md = ai_generate_bell_curve(problems)
+        competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        focus_md = ai_generate_recommendations(problems, clusters)
+        content = f"""
+# Project Brief: <Автозаполнение — тестовые данные>
+
+## 51. Problem Clustering & Graph Analysis
+{graph_md}
+
+## 52. Problem Distribution (Bell Curve)
+{bell_curve_md}
+
+## 53. Advanced Competitor Analysis
+{competitors_md}
+{swot_md}
+{unmet_md}
+
+{focus_md}
+
+> AI: Для теста вы можете сгенерировать свои данные или ввести вручную. Если хотите протестировать на реальных данных — используйте опцию --input.
+"""
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f'projectBrief.md автозаполнен тестовыми данными: {out_path}')
+        return
+
+    if interactive:
+        import pandas as pd
+        print('Введите 3-5 проблем (формат: проблема, сегмент, частота):')
+        problems_list = []
+        for i in range(3):
+            p = input(f'Проблема {i+1}: ')
+            s = input(f'Сегмент для проблемы {i+1}: ')
+            f = input(f'Частота (число) для проблемы {i+1}: ')
+            problems_list.append({'problem': p, 'segment': s, 'frequency': int(f), 'source': 'manual'})
+        print('Введите 2-3 конкурентов (формат: имя, сегмент, killer features, цена, отзыв):')
+        competitors_list = []
+        for i in range(2):
+            n = input(f'Имя конкурента {i+1}: ')
+            s = input(f'Сегмент конкурента {i+1}: ')
+            k = input(f'Killer features конкурента {i+1}: ')
+            pr = input(f'Цена конкурента {i+1}: ')
+            r = input(f'Отзыв о конкуренте {i+1}: ')
+            competitors_list.append({'name': n, 'segment': s, 'killer_features': k, 'price': pr, 'review': r})
+        problems = pd.DataFrame(problems_list)
+        competitors = pd.DataFrame(competitors_list)
+        data = {'problems': problems, 'competitors': competitors}
+        problems, clusters = ai_cluster_problems(problems)
+        graph_md = ai_generate_graphs(clusters)
+        bell_curve_md = ai_generate_bell_curve(problems)
+        competitors_md, swot_md, unmet_md = ai_analyze_competitors(competitors)
+        focus_md = ai_generate_recommendations(problems, clusters)
+        content = f"""
+# Project Brief: <Автозаполнение — интерактивный режим>
+
+## 51. Problem Clustering & Graph Analysis
+{graph_md}
+
+## 52. Problem Distribution (Bell Curve)
+{bell_curve_md}
+
+## 53. Advanced Competitor Analysis
+{competitors_md}
+{swot_md}
+{unmet_md}
+
+{focus_md}
+
+> AI: Данные введены вручную. Для теста используйте --mock, для загрузки — --input.
+"""
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f'projectBrief.md автозаполнен интерактивно: {out_path}')
+        return
+
+    # 1. Загрузка данных
+    if input_path.endswith('.csv'):
+        data = pd.read_csv(input_path)
+    elif input_path.endswith('.json'):
+        data = pd.read_json(input_path)
+    else:
+        print('Поддерживаются только .csv и .json. Или используйте --mock для теста.')
+        return
+
+    # 2. AI-кластеризация проблем
+    problems, clusters = ai_cluster_problems(data)
+    # 3. Генерация графов (Mermaid)
+    graph_md = ai_generate_graphs(clusters)
+    # 4. Bell curve проблем
+    bell_curve_md = ai_generate_bell_curve(problems)
+    # 5. Анализ конкурентов
+    competitors_md, swot_md, unmet_md = ai_analyze_competitors(data)
+    # 6. AI-рекомендации по фокусу
+    focus_md = ai_generate_recommendations(problems, clusters)
+
+    # 7. Генерация projectBrief.md
+    content = f"""
+# Project Brief: <Автозаполнение>
+
+## 51. Problem Clustering & Graph Analysis
+{graph_md}
+
+## 52. Problem Distribution (Bell Curve)
+{bell_curve_md}
+
+## 53. Advanced Competitor Analysis
+{competitors_md}
+{swot_md}
+{unmet_md}
+
+{focus_md}
+
+> AI: Для теста вы можете сгенерировать свои данные с --mock или ввести вручную. Для реальных данных используйте --input.
+"""
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'projectBrief.md автозаполнен: {out_path}')
+
+# --- Генерация шаблонов CSV ---
+def cmd_generate_csv_template(args):
+    import pandas as pd
+    problems = pd.DataFrame([
+        {'problem': 'High cost', 'segment': 'B2B', 'frequency': 30, 'source': 'survey'},
+        {'problem': 'UX is confusing', 'segment': 'B2C', 'frequency': 25, 'source': 'feedback'},
+    ])
+    competitors = pd.DataFrame([
+        {'name': 'CompA', 'segment': 'B2B', 'killer_features': 'FastAPI, Support', 'price': '$$$', 'review': 'Очень быстрый API'},
+        {'name': 'CompB', 'segment': 'B2C', 'killer_features': 'UX, Mobile', 'price': '$$', 'review': 'Удобно, но дорого'},
+    ])
+    problems.to_csv('problems_template.csv', index=False)
+    competitors.to_csv('competitors_template.csv', index=False)
+    print('Сгенерированы шаблоны: problems_template.csv, competitors_template.csv')
+
+def cmd_review_spec(args):
+    file_path = args.file or 'projectBrief.md'
+    out_path = args.out
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    # AI-ревью: полнота, связность, дубли, рекомендации, executive summary
+    checklist, recommendations, summary = ai_review_spec(content)
+    review = f"""
+# AI-ревью projectBrief.md
+
+## Чек-лист полноты
+{checklist}
+
+## AI-рекомендации
+{recommendations}
+
+## Executive Summary
+{summary}
+"""
+    print(review)
+    if out_path:
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(review)
+        print(f'AI-ревью сохранено в {out_path}')
+
 def main():
-    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec")
+    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec, autofill-spec, generate-csv-template, review-spec")
     subparsers = parser.add_subparsers(dest="command")
 
     p_summary = subparsers.add_parser("summary", help="Сгенерировать summary по задаче или всем задачам")
@@ -308,6 +497,20 @@ def main():
     p_generate.add_argument("--name", help="Название проекта")
     p_generate.add_argument("--out", help="Путь для сохранения projectBrief.md")
     p_generate.set_defaults(func=cmd_generate_spec)
+
+    p_autofill = subparsers.add_parser("autofill-spec", help="Автоматически заполнить ключевые секции projectBrief.md на основе данных")
+    p_autofill.add_argument("--input", help="Путь к файлу данных (.csv/.json)")
+    p_autofill.add_argument("--out", help="Путь для сохранения projectBrief.md")
+    p_autofill.add_argument("--mock", action="store_true", help="Сгенерировать тестовые данные для автозаполнения")
+    p_autofill.set_defaults(func=cmd_autofill_spec)
+
+    p_generate_csv = subparsers.add_parser("generate-csv-template", help="Сгенерировать шаблоны CSV для ручного заполнения проблем и конкурентов")
+    p_generate_csv.set_defaults(func=cmd_generate_csv_template)
+
+    p_review_spec = subparsers.add_parser("review-spec", help="AI-ревью projectBrief.md: полнота, рекомендации, executive summary")
+    p_review_spec.add_argument("--file", help="Путь к файлу спецификации (по умолчанию projectBrief.md)")
+    p_review_spec.add_argument("--out", help="Путь для сохранения AI-ревью (например, review.md)")
+    p_review_spec.set_defaults(func=cmd_review_spec)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
