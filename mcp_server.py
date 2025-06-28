@@ -1249,6 +1249,22 @@ class Mutation:
             await queue.put(id)
         return True
 
+    @strawberry.mutation
+    async def rollback_rule(self, id: str, commit: str, user_id: str) -> 'RollbackResult':
+        import subprocess, os
+        path = os.path.join('rules', f'{id}.json')
+        if not os.path.exists(path):
+            return RollbackResult(status="error", rule_id=id, commit=commit, error="Правило не найдено")
+        result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+        if result.returncode != 0:
+            msg = f"Конфликт при откате правила {id} пользователем {user_id}: {result.stderr}"
+            notify_mac("MCP: Конфликт", msg)
+            return RollbackResult(status="conflict", rule_id=id, commit=commit, error=result.stderr)
+        msg = f"[rule] [rollback] {id} {user_id}: rollback to {commit}"
+        subprocess.run(['git', 'add', path], check=False)
+        subprocess.run(['git', 'commit', '-m', msg], check=False)
+        return RollbackResult(status="rolled back", rule_id=id, commit=commit)
+
 @strawberry.type
 class Subscription:
     @strawberry.subscription
