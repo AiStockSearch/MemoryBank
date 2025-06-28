@@ -656,10 +656,10 @@ def federation_import_templates(args):
             target_path = os.path.join(archive_dir, member)
             # Если файл уже есть — не затирать, а создать версию
             if os.path.exists(target_path) and not member.endswith('.meta.json'):
-                name, ext = member.rsplit('.', 1)
+                name, ext = os.path.splitext(os.path.basename(target_path))
                 version = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-                new_name = f"{name}_imported_{version}.{ext}"
-                target_path = os.path.join(archive_dir, new_name)
+                new_name = f"{name}_imported_{version}{ext}"
+                target_path = os.path.join(os.path.dirname(target_path), new_name)
             with open(target_path, 'wb') as f:
                 f.write(zf.read(member))
     print(f'Импортировано шаблонов в архив проекта {args.project_id} из {args.archive}')
@@ -760,6 +760,141 @@ def remind_audit_templates(args):
     else:
         print('Напоминание: аудит шаблонов ещё не проводился или не зафиксирован в auditLog.md. Проведите аудит!')
 
+def federation_export_package(args):
+    import os
+    import zipfile
+    includes = set((args.include or 'templates,knowledge,briefs,cases').split(','))
+    base_dir = f"archive/projects/{args.project_id}/templates/"
+    out_zip = args.out or f"{args.project_id}_knowledge_package.zip"
+    with zipfile.ZipFile(out_zip, 'w') as zf:
+        # 1. Шаблоны
+        if 'templates' in includes and os.path.exists(base_dir):
+            for f in os.listdir(base_dir):
+                path = os.path.join(base_dir, f)
+                zf.write(path, arcname=f'templates/{f}')
+        # 2. Best practices (knowledge_packages)
+        kp_dir = 'memory-bank/knowledge_packages/'
+        if 'knowledge' in includes and os.path.exists(kp_dir):
+            for f in os.listdir(kp_dir):
+                path = os.path.join(kp_dir, f)
+                zf.write(path, arcname=f'knowledge_packages/{f}')
+        # 3. Спецификации (projectBrief.md)
+        if 'briefs' in includes:
+            pb_path = 'memory-bank/projectBrief.md'
+            if os.path.exists(pb_path):
+                zf.write(pb_path, arcname='projectBrief.md')
+        # 4. Бизнес-кейсы (business/)
+        cases_dir = 'memory-bank/business/'
+        if 'cases' in includes and os.path.exists(cases_dir):
+            for f in os.listdir(cases_dir):
+                path = os.path.join(cases_dir, f)
+                zf.write(path, arcname=f'business/{f}')
+    print(f'Экспортирован knowledge package: {out_zip}')
+
+def federation_import_package(args):
+    import os
+    import zipfile
+    import datetime
+    archive_dir = f"archive/projects/{args.project_id}/templates/"
+    kp_dir = 'memory-bank/knowledge_packages/'
+    briefs_dir = 'memory-bank/'
+    cases_dir = 'memory-bank/business/'
+    os.makedirs(archive_dir, exist_ok=True)
+    os.makedirs(kp_dir, exist_ok=True)
+    os.makedirs(cases_dir, exist_ok=True)
+    with zipfile.ZipFile(args.archive, 'r') as zf:
+        for member in zf.namelist():
+            if member.startswith('templates/'):
+                fname = member[len('templates/'):]
+                target_path = os.path.join(archive_dir, fname)
+            elif member.startswith('knowledge_packages/'):
+                fname = member[len('knowledge_packages/'):]
+                target_path = os.path.join(kp_dir, fname)
+            elif member == 'projectBrief.md':
+                target_path = os.path.join(briefs_dir, 'projectBrief.md')
+            elif member.startswith('business/'):
+                fname = member[len('business/'):]
+                target_path = os.path.join(cases_dir, fname)
+            else:
+                continue
+            # Не затирать существующие файлы без версии
+            if os.path.exists(target_path) and not target_path.endswith('.meta.json'):
+                name, ext = os.path.splitext(os.path.basename(target_path))
+                version = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                new_name = f"{name}_imported_{version}{ext}"
+                target_path = os.path.join(os.path.dirname(target_path), new_name)
+            with open(target_path, 'wb') as f:
+                f.write(zf.read(member))
+    print(f'Импортирован knowledge package в проект {args.project_id} из {args.archive}')
+
+def analyze_knowledge_package(args):
+    import zipfile
+    import datetime
+    import io
+    import json
+    summary = []
+    dups = set()
+    outdated = set()
+    files_seen = set()
+    now = datetime.datetime.now()
+    with zipfile.ZipFile(args.archive, 'r') as zf:
+        members = zf.namelist()
+        summary.append(f'# Knowledge package analysis: {args.archive}')
+        summary.append(f'Всего файлов: {len(members)}')
+        for member in members:
+            if member.endswith('.meta.json'):
+                try:
+                    meta = json.loads(zf.read(member).decode('utf-8'))
+                    key = (meta.get('source','-'), meta.get('origin','-'), meta.get('filename',member))
+                    if key in files_seen:
+                        dups.add(meta.get('filename',member))
+                    else:
+                        files_seen.add(key)
+                    v = meta.get('version')
+                    if v:
+                        try:
+                            dt = datetime.datetime.strptime(v[:8], '%Y%m%d')
+                            if (now - dt).days > 180:
+                                outdated.add(meta.get('filename',member))
+                        except Exception:
+                            pass
+                except Exception:
+                    continue
+        # Краткий разбор по категориям
+        cats = {'templates/':0, 'knowledge_packages/':0, 'business/':0, 'projectBrief.md':0}
+        for member in members:
+            for c in cats:
+                if member.startswith(c) or member == c:
+                    cats[c] += 1
+        summary.append('---')
+        summary.append('## Состав пакета:')
+        for c, n in cats.items():
+            summary.append(f'- {c}: {n} файлов')
+        summary.append('---')
+        if dups:
+            summary.append(f'**Дубликаты файлов:** {sorted(dups)}')
+        else:
+            summary.append('Дубликаты не найдены.')
+        if outdated:
+            summary.append(f'**Устаревшие файлы (старше 180 дней):** {sorted(outdated)}')
+        else:
+            summary.append('Устаревших файлов не найдено.')
+        summary.append('---')
+        summary.append('## Рекомендации:')
+        if dups:
+            summary.append('- Удалите или переименуйте дубликаты.')
+        if outdated:
+            summary.append('- Проверьте актуальность устаревших практик и шаблонов.')
+        if not (dups or outdated):
+            summary.append('- Всё в порядке! Knowledge package готов к обмену.')
+    report = '\n'.join(summary)
+    if getattr(args, 'out', None):
+        with open(args.out, 'w', encoding='utf-8') as f:
+            f.write(report)
+        print(f'Отчёт анализа сохранён в {args.out}')
+    else:
+        print(report)
+
 def main():
     parser = argparse.ArgumentParser(description="AI-ассистент и CLI для Memory Bank")
     subparsers = parser.add_subparsers()
@@ -851,6 +986,11 @@ def main():
     parser_fed_import.add_argument('--archive', required=True, help='Путь к zip-архиву шаблонов')
     parser_fed_import.set_defaults(func=federation_import_templates)
 
+    parser_fed_import_pkg = subparsers.add_parser('federation-import-package', help='Импортировать knowledge package (zip) в проект')
+    parser_fed_import_pkg.add_argument('--project-id', required=True, help='ID проекта')
+    parser_fed_import_pkg.add_argument('--archive', required=True, help='Путь к knowledge package (zip)')
+    parser_fed_import_pkg.set_defaults(func=federation_import_package)
+
     parser_audit = subparsers.add_parser('audit-templates', help='Аудит шаблонов: поиск дубликатов, устаревших версий, отсутствия метаданных')
     parser_audit.add_argument('--project-id', required=True, help='ID проекта')
     parser_audit.add_argument('--archive', action='store_true', help='Проверять архив (по умолчанию — рабочая папка)')
@@ -858,6 +998,17 @@ def main():
 
     parser_remind = subparsers.add_parser('remind-audit-templates', help='Напоминание о необходимости аудита шаблонов (если не было более 90 дней)')
     parser_remind.set_defaults(func=remind_audit_templates)
+
+    parser_fed_export_pkg = subparsers.add_parser('federation-export-package', help='Экспортировать пакет знаний (шаблоны, best practices, спецификации, бизнес-кейсы) в zip')
+    parser_fed_export_pkg.add_argument('--project-id', required=True, help='ID проекта')
+    parser_fed_export_pkg.add_argument('--include', help='Что включать: templates,knowledge,briefs,cases (через запятую)')
+    parser_fed_export_pkg.add_argument('--out', help='Имя выходного zip-архива')
+    parser_fed_export_pkg.set_defaults(func=federation_export_package)
+
+    parser_analyze_kp = subparsers.add_parser('analyze-knowledge-package', help='Анализировать knowledge package (zip): summary, дубликаты, устаревшие практики, рекомендации')
+    parser_analyze_kp.add_argument('--archive', required=True, help='Путь к knowledge package (zip)')
+    parser_analyze_kp.add_argument('--out', help='Путь для сохранения отчёта (md/txt)')
+    parser_analyze_kp.set_defaults(func=analyze_knowledge_package)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

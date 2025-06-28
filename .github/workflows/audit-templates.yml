@@ -1,0 +1,28 @@
+name: Audit Templates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install pandas requests websockets
+      - name: Run audit-templates for projectA (archive)
+        run: |
+          python3 scripts/ai_cli.py audit-templates --project-id projectA --archive | tee audit_output.txt
+          if grep -q "Дубликаты шаблонов:" audit_output.txt || grep -q "Устаревшие шаблоны" audit_output.txt || grep -q "Шаблоны без метаданных" audit_output.txt; then
+            echo "[ERROR] Найдены проблемы с шаблонами!" && exit 1
+          fi 
