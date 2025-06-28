@@ -1360,6 +1360,35 @@ class Mutation:
             results.append(RollbackResult(status="rolled back", rule_id=rule_id, commit=commit))
         return BatchRollbackResult(status="ok", results=results)
 
+    @strawberry.mutation
+    async def batch_rollback_templates(self, names: List[str], commit: str, user_id: str) -> 'BatchRollbackTemplatesResult':
+        import subprocess, os, datetime
+        results = []
+        for name in names:
+            path = os.path.join('templates', f'{name}.json')
+            if not os.path.exists(path):
+                results.append(RollbackResult(status="error", rule_id=name, commit=commit, error="Шаблон не найден"))
+                continue
+            result = subprocess.run(['git', 'checkout', commit, '--', path], capture_output=True, text=True)
+            if result.returncode != 0:
+                msg = f"Конфликт при batch-откате шаблона {name} пользователем {user_id}: {result.stderr}"
+                await notify_conflict({
+                    "event": "conflict",
+                    "entity": "template",
+                    "id": name,
+                    "details": msg,
+                    "initiator": user_id,
+                    "timestamp": datetime.datetime.utcnow().isoformat()
+                })
+                notify_mac("MCP: Конфликт", msg)
+                results.append(RollbackResult(status="conflict", rule_id=name, commit=commit, error=result.stderr))
+                continue
+            msg = f"[template] [rollback] {name} {user_id}: batch rollback to {commit}"
+            subprocess.run(['git', 'add', path], check=False)
+            subprocess.run(['git', 'commit', '-m', msg], check=False)
+            results.append(RollbackResult(status="rolled back", rule_id=name, commit=commit))
+        return BatchRollbackTemplatesResult(status="ok", results=results)
+
 @strawberry.input
 class RuleInput:
     id: str
