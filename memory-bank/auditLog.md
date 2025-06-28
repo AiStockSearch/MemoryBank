@@ -26,3 +26,5 @@
 [2025-06-28 23:17] [INFO] [ai-assistant] Снапшот создан: snapshot-test.zip
 [2025-06-28 23:17] [ERROR] [ai-assistant] Ошибка создания снапшота: Internal Error
 [2025-06-28 23:17] [INFO] [ai-assistant] Снапшот создан: snapshot-test.zip
+[2025-06-29 00:26] [INFO] [ai-assistant] Экспортировано в PDF: projectBrief.pdf
+[2025-06-29 00:26] [INFO] [ai-assistant] Презентация PPTX сгенерирована: projectBrief.pptx
