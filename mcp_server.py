@@ -124,8 +124,9 @@ async def create_project(req: ProjectCreateRequest):
                 'INSERT INTO cursor_rules (id, project_id, type, value, description) VALUES ($1, $2, $3, $4, $5)',
                 rule["id"] + f"_{project_id}", project_id, rule["type"], rule["value"], rule["description"]
             )
-        # Инициализация дефолтных шаблонов (аналогично можно сделать для глобальных шаблонов)
-        for tpl in DEFAULT_TEMPLATES:
+        # Копируем глобальные шаблоны
+        global_templates = await conn.fetch('SELECT * FROM templates WHERE project_id IS NULL')
+        for tpl in global_templates:
             await conn.execute(
                 'INSERT INTO templates (project_id, name, repo_url, tags) VALUES ($1, $2, $3, $4)',
                 project_id, tpl["name"], tpl["repo_url"], tpl["tags"]
@@ -828,4 +829,28 @@ async def update_global_rules(rules: list, user_id: str = Header(None, alias="X-
             'INSERT INTO history (project_id, user_id, action, details) VALUES (NULL, $1, $2, $3)',
             user_id, 'update_global_rules', json.dumps({'rules': rules})
         )
-    return {"status": "global_rules_updated"} 
+    return {"status": "global_rules_updated"}
+
+@app.get('/templates/global', dependencies=[Depends(verify_api_key)])
+async def get_global_templates():
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('SELECT * FROM templates WHERE project_id IS NULL')
+        return [dict(row) for row in rows]
+
+@app.post('/templates/global', dependencies=[Depends(verify_api_key)])
+async def update_global_templates(templates: list, user_id: str = Header(None, alias="X-USER-ID")):
+    pool = await cacd.memory._get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute('DELETE FROM templates WHERE project_id IS NULL')
+        for tpl in templates:
+            await conn.execute(
+                'INSERT INTO templates (project_id, name, repo_url, tags) VALUES (NULL, $1, $2, $3)',
+                tpl["name"], tpl.get("repo_url", ""), tpl.get("tags", [])
+            )
+        # Логируем изменение глобальных шаблонов
+        await conn.execute(
+            'INSERT INTO history (project_id, user_id, action, details) VALUES (NULL, $1, $2, $3)',
+            user_id, 'update_global_templates', json.dumps({'templates': templates})
+        )
+    return {"status": "global_templates_updated"} 
