@@ -983,7 +983,24 @@ class DocInput:
     type: str
     content: str
 
-new_task_subscribers = set()
+@strawberry.input
+class TaskUpdateInput:
+    command: Optional[str] = None
+    context: Optional[str] = None
+    rules: Optional[str] = None
+    status: Optional[str] = None
+    result: Optional[str] = None
+
+@strawberry.input
+class DocUpdateInput:
+    type: Optional[str] = None
+    content: Optional[str] = None
+
+# Подписчики для обновлений/удалений
+updated_task_subscribers = set()
+deleted_task_subscribers = set()
+updated_doc_subscribers = set()
+deleted_doc_subscribers = set()
 
 @strawberry.type
 class Mutation:
@@ -1011,6 +1028,66 @@ class Mutation:
             )
         return DocType(id=row['id'], project_id=input.project_id, type=input.type, content=input.content, created_at=str(row['created_at']))
 
+    @strawberry.mutation
+    async def update_task(self, id: str, input: TaskUpdateInput) -> TaskType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM tasks WHERE id = $1', id)
+            if not row:
+                raise Exception("Task not found")
+            data = dict(row)
+            for k, v in input.__dict__.items():
+                if v is not None:
+                    data[k] = v
+            await conn.execute('''UPDATE tasks SET command=$1, context=$2, rules=$3, status=$4, result=$5 WHERE id=$6''',
+                data.get('command'), data.get('context'), data.get('rules'), data.get('status'), data.get('result'), id)
+        task = TaskType(**data)
+        for queue in updated_task_subscribers:
+            await queue.put(task)
+        return task
+
+    @strawberry.mutation
+    async def delete_task(self, id: str) -> bool:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM tasks WHERE id = $1', id)
+            if not row:
+                return False
+            await conn.execute('DELETE FROM tasks WHERE id = $1', id)
+        for queue in deleted_task_subscribers:
+            await queue.put(id)
+        return True
+
+    @strawberry.mutation
+    async def update_doc(self, id: int, input: DocUpdateInput) -> DocType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM docs WHERE id = $1', id)
+            if not row:
+                raise Exception("Doc not found")
+            data = dict(row)
+            for k, v in input.__dict__.items():
+                if v is not None:
+                    data[k] = v
+            await conn.execute('''UPDATE docs SET type=$1, content=$2 WHERE id=$3''',
+                data.get('type'), data.get('content'), id)
+        doc = DocType(**data)
+        for queue in updated_doc_subscribers:
+            await queue.put(doc)
+        return doc
+
+    @strawberry.mutation
+    async def delete_doc(self, id: int) -> bool:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM docs WHERE id = $1', id)
+            if not row:
+                return False
+            await conn.execute('DELETE FROM docs WHERE id = $1', id)
+        for queue in deleted_doc_subscribers:
+            await queue.put(id)
+        return True
+
 @strawberry.type
 class Subscription:
     @strawberry.subscription
@@ -1023,6 +1100,50 @@ class Subscription:
                 yield task
         finally:
             new_task_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def task_updated(self, info) -> TaskType:
+        queue = asyncio.Queue()
+        updated_task_subscribers.add(queue)
+        try:
+            while True:
+                task = await queue.get()
+                yield task
+        finally:
+            updated_task_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def task_deleted(self, info) -> str:
+        queue = asyncio.Queue()
+        deleted_task_subscribers.add(queue)
+        try:
+            while True:
+                task_id = await queue.get()
+                yield task_id
+        finally:
+            deleted_task_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def doc_updated(self, info) -> DocType:
+        queue = asyncio.Queue()
+        updated_doc_subscribers.add(queue)
+        try:
+            while True:
+                doc = await queue.get()
+                yield doc
+        finally:
+            updated_doc_subscribers.remove(queue)
+
+    @strawberry.subscription
+    async def doc_deleted(self, info) -> int:
+        queue = asyncio.Queue()
+        deleted_doc_subscribers.add(queue)
+        try:
+            while True:
+                doc_id = await queue.get()
+                yield doc_id
+        finally:
+            deleted_doc_subscribers.remove(queue)
 
 schema = strawberry.Schema(Query, Mutation, Subscription)
 app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql") 
