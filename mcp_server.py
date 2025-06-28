@@ -629,12 +629,64 @@ def generate_report_action(params):
         report.append(f'Knowledge: {fname}')
     return {'report': report}
 
+def analyze_changelog_action(params):
+    import os
+    path = os.path.join('memory-bank', 'CHANGELOG.md')
+    if not os.path.exists(path):
+        return {'error': 'CHANGELOG.md not found'}
+    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()
+    summary = []
+    anomalies = []
+    for line in lines:
+        if 'fix:' in line or 'error' in line.lower():
+            anomalies.append(line.strip())
+        if 'feat:' in line:
+            summary.append(line.strip())
+    return {'summary': summary, 'anomalies': anomalies}
+
+def generate_best_practices_action(params):
+    import os
+    practices = []
+    path = os.path.join('memory-bank', 'systemPatterns.md')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        in_section = False
+        for line in lines:
+            if 'Best practices' in line:
+                in_section = True
+            elif in_section and (line.strip() == '' or line.startswith('#')):
+                in_section = False
+            elif in_section:
+                practices.append(line.strip())
+    return {'best_practices': practices}
+
+def ai_review_changes_action(params):
+    import os
+    path = os.path.join('memory-bank', 'CHANGELOG.md')
+    if not os.path.exists(path):
+        return {'error': 'CHANGELOG.md not found'}
+    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()[-10:]
+    improvements = []
+    risks = []
+    for line in lines:
+        if 'refactor' in line or 'improve' in line:
+            improvements.append(line.strip())
+        if 'risk' in line or 'breaking' in line:
+            risks.append(line.strip())
+    return {'improvements': improvements, 'risks': risks}
+
 CUSTOM_COMMAND_ACTIONS = {
     'echo_action': echo_action,
     'archive_knowledge_package_action': archive_knowledge_package_action,
     'search_knowledge_action': search_knowledge_action,
     'batch_update_status_action': batch_update_status_action,
     'generate_report_action': generate_report_action,
+    'analyze_changelog_action': analyze_changelog_action,
+    'generate_best_practices_action': generate_best_practices_action,
+    'ai_review_changes_action': ai_review_changes_action,
     # Здесь можно регистрировать другие action-функции
 }
 

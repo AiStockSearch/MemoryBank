@@ -1,0 +1,4 @@
+name: generate_best_practices
+description: Собирает best practices из паттернов, решений, knowledge packages
+parameters: []
+action: generate_best_practices_action 

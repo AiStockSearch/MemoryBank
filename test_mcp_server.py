@@ -524,4 +524,32 @@ def test_custom_command_action():
     assert data['description'] == 'Echo test command'
     assert data['parameters'] == params
     assert data['action'] == 'echo_action'
-    assert data['result'] == {'echo': 'hello world'} 
+    assert data['result'] == {'echo': 'hello world'}
+
+def test_analyze_changelog_command():
+    # Создаём CHANGELOG.md с примерами
+    os.makedirs('memory-bank', exist_ok=True)
+    with open('memory-bank/CHANGELOG.md', 'w') as f:
+        f.write('[2024-06-20] fix: Исправлен баг\n[2024-06-21] feat: Новая фича\n[2024-06-22] error: Ошибка\n')
+    resp = client.post('/custom_command/analyze_changelog', json={})
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    assert 'fix:' in ''.join(data['anomalies'])
+    assert 'feat:' in ''.join(data['summary'])
+
+def test_generate_best_practices_command():
+    # Создаём systemPatterns.md с секцией Best practices
+    with open('memory-bank/systemPatterns.md', 'w') as f:
+        f.write('# systemPatterns\n\n## Best practices\n- Использовать DRY\n- Писать тесты\n')
+    resp = client.post('/custom_command/generate_best_practices', json={})
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    assert any('DRY' in p for p in data['best_practices'])
+
+def test_ai_review_changes_command():
+    # CHANGELOG.md уже создан выше
+    resp = client.post('/custom_command/ai_review_changes', json={})
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    assert isinstance(data['improvements'], list)
+    assert isinstance(data['risks'], list) 
