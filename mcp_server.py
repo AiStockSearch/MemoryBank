@@ -390,6 +390,18 @@ async def merge_project(
 
         # 6. Если dry_run — только diff
         if dry_run:
+            # Оповещение о конфликтах (если есть)
+            import datetime
+            for entity, diff in [('tasks', tasks_diff), ('rules', rules_diff), ('templates', templates_diff), ('embeddings', embeddings_diff), ('docs', docs_diff), ('history', history_diff)]:
+                for c in diff['conflicted']:
+                    await notify_conflict({
+                        "event": "conflict",
+                        "entity": entity,
+                        "id": c.get('id', ''),
+                        "details": f"Конфликт при merge: {c}",
+                        "initiator": user_id,
+                        "timestamp": datetime.datetime.utcnow().isoformat()
+                    })
             return {
                 'tasks': tasks_diff,
                 'rules': rules_diff,
