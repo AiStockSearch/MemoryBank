@@ -1979,3 +1979,92 @@ async def generate_memory_bank_endpoint(
     spec.loader.exec_module(mb_gen)
     mb_gen.main()
     return {"status": "ok", "path": project_path, "generator": "memory-bank/generator.py"}
+
+from fastapi import APIRouter, Body
+import os
+import glob
+import datetime
+
+router = APIRouter()
+
+@router.post('/epic/generate')
+async def generate_epic_knowledge_package(
+    epic_title: str = Body(..., embed=True),
+    project_path: str = Body('.', embed=True),
+    user_id: str = Body('system', embed=True)
+):
+    """
+    Генерирует knowledge package для Epic на основе анализа документации, инфраструктуры и существующих knowledge packages.
+    """
+    mb_path = os.path.join(project_path, 'memory-bank')
+    kp_dir = os.path.join(mb_path, 'knowledge_packages')
+    os.makedirs(kp_dir, exist_ok=True)
+    # 1. Анализ документации
+    def read_file_safe(path):
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return f.read()
+        return ''
+    docs = {
+        'README.md': read_file_safe(os.path.join(project_path, 'README.md')),
+        'developer-primer.md': read_file_safe(os.path.join(mb_path, 'developer-primer.md')),
+        'productContext.md': read_file_safe(os.path.join(mb_path, 'productContext.md')),
+        'teamContext.md': read_file_safe(os.path.join(mb_path, 'teamContext.md')),
+    }
+    # 2. Анализ существующих knowledge packages
+    kp_files = glob.glob(os.path.join(kp_dir, '*.md'))
+    existing_kps = [os.path.basename(f) for f in kp_files]
+    # 3. Формирование подзадач (упрощённо: по ключевым словам)
+    tasks = [
+        'Разработать лендинг',
+        'Создать бота для генерации контента',
+        'Настроить крон для рассылки',
+        'Интегрировать с ВК, Facebook, Telegram',
+        'Провести аудит безопасности интеграций',
+        'Провести аудит используемых npm/pip пакетов',
+    ]
+    # 4. Оценка сроков (примерно)
+    timeline = [
+        'Лендинг: 2 недели',
+        'Бот: 1 неделя',
+        'Крон: 2 дня',
+        'Интеграции: 1 неделя',
+        'Аудит: 3 дня',
+    ]
+    # 5. Бизнес-процесс, риски, профиты, инструменты
+    business_process = 'Генерация → Модерация → Публикация → Аналитика\nСледующий пул: автоматизация аналитики, интеграция с новыми платформами'
+    risks = ['Уязвимости в интеграциях', 'Потеря доступа к соцсетям', 'Нарушение SLA по рассылке']
+    profits = ['Рост охвата аудитории', 'Снижение ручного труда', 'Повышение скорости публикаций']
+    tools = ['Node.js', 'Python', 'VK API', 'Facebook API', 'cron', 'CI/CD']
+    audit = '(результаты npm audit, pip check и т.д.)'
+    # 6. Формирование knowledge package
+    now = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    kp_name = f'epic-{epic_title.lower().replace(" ", "-")}-{now}.md'
+    kp_path = os.path.join(kp_dir, kp_name)
+    with open(kp_path, 'w', encoding='utf-8') as f:
+        f.write(f"""# Knowledge Package: Epic — {epic_title}\n\n## Цели\n- Автоматизировать генерацию и публикацию контента в соцсетях\n\n## Анализ документации и инфраструктуры\n- Документация: {', '.join([k for k, v in docs.items() if v])}\n- Инфраструктура: см. teamContext.md, productContext.md\n- Существующие knowledge packages: {', '.join(existing_kps)}\n\n## Список подзадач\n""")
+        for t in tasks:
+            f.write(f"- [ ] {t}\n")
+        f.write(f"""\n## Таймлайн\n""")
+        for t in timeline:
+            f.write(f"- {t}\n")
+        f.write(f"""\n## Бизнес-процесс\n{business_process}\n\n## Риски\n""")
+        for r in risks:
+            f.write(f"- {r}\n")
+        f.write(f"""\n## Профиты\n""")
+        for p in profits:
+            f.write(f"- {p}\n")
+        f.write(f"""\n## Необходимые инструменты\n""")
+        for t in tools:
+            f.write(f"- {t}\n")
+        f.write(f"""\n## Аудит пакетов\n{audit}\n\n## Новые knowledge packages\n- (создавать при появлении новых данных, улучшений, рисков)\n""")
+    # 7. Логирование события
+    audit_path = os.path.join(mb_path, 'auditLog.md')
+    with open(audit_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{now}] [{user_id}] [EPIC_CREATE] Создан knowledge package {kp_name}\n")
+    changelog_path = os.path.join(project_path, 'CHANGELOG.md')
+    with open(changelog_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{now.split('_')[0]}] feat: Создан knowledge package {kp_name} (Epic: {epic_title})\n")
+    return {"status": "ok", "knowledge_package": kp_path}
+
+app.include_router(router)

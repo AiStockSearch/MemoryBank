@@ -78,4 +78,27 @@ Memory Bank — модуль для хранения, генерации и об
 ## Контроль версий и автоматизация changelog
 - Все изменения фиксируются в git-истории.
 - При каждом pull request или merge обновляйте CHANGELOG.md (автоматически или вручную).
-- Используйте шаблон changelog из корня проекта. 
+- Используйте шаблон changelog из корня проекта.
+
+## AI Automation Scenarios
+
+- Для архивации knowledge packages вызывай:
+  `mcp archive-knowledge-package <file>`
+- Для миграции структуры:
+  `mcp migrate-memory-bank --from <v1> --to <v2>`
+- Для восстановления из бэкапа:
+  `mcp restore-memory-bank <backup-file>`
+- Для обновления changelog:
+  `mcp update-changelog <message>`
+- Для теста DRP:
+  `mcp test-drp`
+- Для поиска:
+  `mcp search-knowledge <keyword>`
+
+> **Важно:** Не редактируй архивные, changelog и audit файлы напрямую — только через команды MCP!
+
+### Примеры промптов для AI
+- "Архивируй knowledge package phase-dev.md"
+- "Проведи тест DRP"
+- "Восстанови Memory Bank из последнего бэкапа"
+- "Обнови changelog после миграции" 
