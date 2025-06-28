@@ -79,6 +79,40 @@ CREATE_TABLES_SQL = [
         conflict_details JSONB,
         created_at TIMESTAMP DEFAULT now()
     )
+    ''',
+    '''
+    CREATE TABLE IF NOT EXISTS task_versions (
+        id SERIAL PRIMARY KEY,
+        task_id TEXT,
+        project_id INTEGER REFERENCES projects(id),
+        version INTEGER,
+        data JSONB,
+        user_id TEXT,
+        created_at TIMESTAMP DEFAULT now()
+    )
+    ''',
+    '''
+    CREATE TABLE IF NOT EXISTS doc_versions (
+        id SERIAL PRIMARY KEY,
+        doc_id INTEGER,
+        project_id INTEGER REFERENCES projects(id),
+        version INTEGER,
+        data JSONB,
+        user_id TEXT,
+        created_at TIMESTAMP DEFAULT now()
+    )
+    ''',
+    '''
+    CREATE TABLE IF NOT EXISTS file_versions (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER REFERENCES projects(id),
+        file_path TEXT,
+        version INTEGER,
+        hash TEXT,
+        user_id TEXT,
+        s3_url TEXT,
+        created_at TIMESTAMP DEFAULT now()
+    )
     '''
 ]
 
