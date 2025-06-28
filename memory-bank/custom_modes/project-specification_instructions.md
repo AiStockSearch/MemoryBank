@@ -280,3 +280,52 @@
 - AI-анализ каналов: <...>
 
 # ... AI-комментарий ...
+
+## 35. Customer Validation & Evidence
+- Документированные интервью: <...>
+- AI-анализ customer feedback: <...>
+- Customer advisory board: <...>
+- LOI (письма о намерениях): <...>
+
+## 36. Go-to-Market (GTM) & Launch Readiness
+- GTM checklist: <...>
+- План коммуникаций: <...>
+- AI-анализ рисков запуска: <...>
+
+## 37. Retention & Expansion
+- Cohort analysis: <...>
+- Expansion revenue: <...>
+- AI-прогноз churn/retention: <...>
+
+## 38. Product Analytics & Experimentation
+- Система экспериментов: <...>
+- AI-генерация новых экспериментов: <...>
+- Feature adoption metrics: <...>
+
+## 39. Regulatory & Compliance Deep Dive
+- Карта регуляторных требований по регионам: <...>
+- AI-мониторинг изменений в законах: <...>
+
+## 40. Sustainability & Social Impact (расширено)
+- Carbon footprint: <...>
+- DEI (Diversity, Equity, Inclusion): <...>
+- AI-анализ социальных трендов: <...>
+
+## 41. AI/ML Strategy (углубить)
+- AI explainability: <...>
+- AI governance: <...>
+- AI roadmap: <...>
+
+## 42. Ecosystem Mapping (визуализация)
+- Mermaid/Graphviz карта экосистемы: <...>
+- AI-анализ влияния экосистемы: <...>
+
+## 43. Knowledge Management
+- AI-автоматизация поиска знаний: <...>
+- Lessons learned: <...>
+
+## 44. AI-Driven Alerts & Monitoring
+- AI-алерты по ключевым метрикам: <...>
+- AI-инициатор действий: <...>
+
+# ... AI-комментарий ...
