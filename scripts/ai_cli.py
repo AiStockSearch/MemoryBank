@@ -486,9 +486,104 @@ def cmd_export_spec(args):
     else:
         print('Поддерживаются только форматы pdf и pptx')
 
+def import_template(template_data, project_id):
+    import os
+    import datetime
+    templates_dir = f"archive/projects/{project_id}/templates/"
+    os.makedirs(templates_dir, exist_ok=True)
+    filename = template_data['filename']
+    source = template_data.get('source', 'external')
+    origin = template_data.get('origin', '')
+    version = template_data.get('version', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    target_path = os.path.join(templates_dir, filename)
+    # Если файл уже есть — не затирать, а создать версию
+    if os.path.exists(target_path):
+        name, ext = filename.rsplit('.', 1)
+        new_name = f"{name}_{source}_{version}.{ext}"
+        target_path = os.path.join(templates_dir, new_name)
+    with open(target_path, 'w', encoding='utf-8') as f:
+        f.write(template_data['content'])
+    # Сохраняем метаданные
+    meta_path = target_path + '.meta.json'
+    import json
+    meta = {
+        'source': source,
+        'origin': origin,
+        'version': version,
+        'project_id': project_id,
+        'filename': filename
+    }
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    print(f'Импортирован шаблон: {target_path}')
+
+# CLI-команда для теста импорта шаблона
+
+def cmd_import_template(args):
+    template_data = {
+        'filename': args.filename,
+        'content': args.content,
+        'source': args.source or 'external',
+        'origin': args.origin or '',
+        'version': args.version or None
+    }
+    import_template(template_data, args.project_id)
+
+def export_template_from_archive(args):
+    import os
+    import shutil
+    archive_dir = f"archive/projects/{args.project_id}/templates/"
+    target_dir = f"memory-bank/projects/{args.project_id}/templates/"
+    os.makedirs(target_dir, exist_ok=True)
+    src_path = os.path.join(archive_dir, args.filename)
+    meta_path = src_path + '.meta.json'
+    if not os.path.exists(src_path):
+        print(f'Шаблон {args.filename} не найден в архиве.')
+        return
+    # Если файл уже есть — не затирать, а создать версию
+    target_path = os.path.join(target_dir, args.filename)
+    if os.path.exists(target_path):
+        import datetime
+        name, ext = args.filename.rsplit('.', 1)
+        version = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        new_name = f"{name}_restored_{version}.{ext}"
+        target_path = os.path.join(target_dir, new_name)
+    shutil.copy2(src_path, target_path)
+    if os.path.exists(meta_path):
+        shutil.copy2(meta_path, target_path + '.meta.json')
+    print(f'Экспортирован шаблон из архива: {target_path}')
+
+def batch_export_templates_from_archive(args):
+    import os
+    import shutil
+    archive_dir = f"archive/projects/{args.project_id}/templates/"
+    target_dir = f"memory-bank/projects/{args.project_id}/templates/"
+    os.makedirs(target_dir, exist_ok=True)
+    if not os.path.exists(archive_dir):
+        print(f'В архиве нет шаблонов для проекта {args.project_id}.')
+        return
+    files = [f for f in os.listdir(archive_dir) if not f.endswith('.meta.json')]
+    if not files:
+        print(f'В архиве нет шаблонов для проекта {args.project_id}.')
+        return
+    for filename in files:
+        src_path = os.path.join(archive_dir, filename)
+        meta_path = src_path + '.meta.json'
+        target_path = os.path.join(target_dir, filename)
+        if os.path.exists(target_path):
+            import datetime
+            name, ext = filename.rsplit('.', 1)
+            version = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            new_name = f"{name}_restored_{version}.{ext}"
+            target_path = os.path.join(target_dir, new_name)
+        shutil.copy2(src_path, target_path)
+        if os.path.exists(meta_path):
+            shutil.copy2(meta_path, target_path + '.meta.json')
+        print(f'Экспортирован шаблон из архива: {target_path}')
+
 def main():
-    parser = argparse.ArgumentParser(description="AI-ассистент CLI: summary, links, diagram, review-changelog, roadmap, generate-spec, autofill-spec, generate-csv-template, review-spec, export-spec")
-    subparsers = parser.add_subparsers(dest="command")
+    parser = argparse.ArgumentParser(description="AI-ассистент и CLI для Memory Bank")
+    subparsers = parser.add_subparsers()
 
     p_summary = subparsers.add_parser("summary", help="Сгенерировать summary по задаче или всем задачам")
     p_summary.add_argument("--task-id", help="ID задачи (если не указано — по всем)")
@@ -537,6 +632,24 @@ def main():
     p_export_spec.add_argument("--format", required=True, help="Формат экспорта: pdf или pptx")
     p_export_spec.add_argument("--out", required=True, help="Путь для сохранения (например, projectBrief.pdf или .pptx)")
     p_export_spec.set_defaults(func=cmd_export_spec)
+
+    parser_import = subparsers.add_parser('import-template', help='Импортировать шаблон в проект')
+    parser_import.add_argument('--project-id', required=True, help='ID проекта')
+    parser_import.add_argument('--filename', required=True, help='Имя файла шаблона')
+    parser_import.add_argument('--content', required=True, help='Содержимое шаблона')
+    parser_import.add_argument('--source', help='Источник шаблона')
+    parser_import.add_argument('--origin', help='Оригинальный проект/ссылка')
+    parser_import.add_argument('--version', help='Версия шаблона')
+    parser_import.set_defaults(func=cmd_import_template)
+
+    parser_export = subparsers.add_parser('export-template-from-archive', help='Экспортировать шаблон из архива в рабочую папку проекта')
+    parser_export.add_argument('--project-id', required=True, help='ID проекта')
+    parser_export.add_argument('--filename', required=True, help='Имя файла шаблона в архиве')
+    parser_export.set_defaults(func=export_template_from_archive)
+
+    parser_batch_export = subparsers.add_parser('batch-export-templates-from-archive', help='Пакетно экспортировать все шаблоны из архива в рабочую папку проекта')
+    parser_batch_export.add_argument('--project-id', required=True, help='ID проекта')
+    parser_batch_export.set_defaults(func=batch_export_templates_from_archive)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
