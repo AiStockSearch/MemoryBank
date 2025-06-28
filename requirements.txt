@@ -7,4 +7,5 @@ httpx
 pytest
 asyncpg
 pgvector
-pync 
+pync
+strawberry-graphql 

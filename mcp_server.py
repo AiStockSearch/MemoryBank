@@ -18,6 +18,10 @@ import hashlib
 import boto3
 import numpy as np
 from sklearn.cluster import KMeans
+import strawberry
+from strawberry.fastapi import GraphQLRouter
+from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
+import asyncio
 
 app = FastAPI()
 dsn = os.getenv("DB_DSN")
@@ -853,4 +857,172 @@ async def update_global_templates(templates: list, user_id: str = Header(None, a
             'INSERT INTO history (project_id, user_id, action, details) VALUES (NULL, $1, $2, $3)',
             user_id, 'update_global_templates', json.dumps({'templates': templates})
         )
-    return {"status": "global_templates_updated"} 
+    return {"status": "global_templates_updated"}
+
+@strawberry.type
+class ProjectType:
+    id: int
+    name: str
+    description: str
+    origin: str
+
+@strawberry.type
+class TaskType:
+    id: str
+    project_id: int
+    command: str
+    context: Optional[str]
+    rules: Optional[str]
+    status: Optional[str]
+    result: Optional[str]
+
+@strawberry.type
+class RuleType:
+    id: str
+    project_id: int
+    type: str
+    value: str
+    description: str
+
+@strawberry.type
+class TemplateType:
+    id: int
+    project_id: int
+    name: str
+    repo_url: str
+    tags: Optional[List[str]]
+
+@strawberry.type
+class EmbeddingType:
+    id: int
+    project_id: int
+    task_id: str
+    description: str
+
+@strawberry.type
+class DocType:
+    id: int
+    project_id: int
+    type: str
+    content: str
+    created_at: str
+
+@strawberry.type
+class HistoryType:
+    id: int
+    project_id: int
+    user_id: Optional[str]
+    action: str
+    details: Optional[str]
+    created_at: str
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    async def projects(self) -> List[ProjectType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM projects')
+            return [ProjectType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def tasks(self, project_id: int) -> List[TaskType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM tasks WHERE project_id = $1', project_id)
+            return [TaskType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def rules(self, project_id: int) -> List[RuleType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM cursor_rules WHERE project_id = $1', project_id)
+            return [RuleType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def docs(self, project_id: int) -> List[DocType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM docs WHERE project_id = $1', project_id)
+            return [DocType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def templates(self, project_id: int) -> List[TemplateType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM templates WHERE project_id = $1', project_id)
+            return [TemplateType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def embeddings(self, project_id: int) -> List[EmbeddingType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM embeddings WHERE project_id = $1', project_id)
+            return [EmbeddingType(**dict(r)) for r in rows]
+
+    @strawberry.field
+    async def history(self, project_id: int) -> List[HistoryType]:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM history WHERE project_id = $1', project_id)
+            return [HistoryType(**dict(r)) for r in rows]
+
+@strawberry.input
+class TaskInput:
+    project_id: int
+    id: str
+    command: str
+    context: Optional[str] = None
+    rules: Optional[str] = None
+    status: Optional[str] = None
+    result: Optional[str] = None
+
+@strawberry.input
+class DocInput:
+    project_id: int
+    type: str
+    content: str
+
+new_task_subscribers = set()
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def create_task(self, input: TaskInput) -> TaskType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                'INSERT INTO tasks (id, project_id, command, context, rules, status, result) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                input.id, input.project_id, input.command, input.context, input.rules, input.status, input.result
+            )
+        task = TaskType(**input.__dict__)
+        # Уведомляем подписчиков
+        for queue in new_task_subscribers:
+            await queue.put(task)
+        return task
+
+    @strawberry.mutation
+    async def create_doc(self, input: DocInput) -> DocType:
+        pool = await cacd.memory._get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                'INSERT INTO docs (project_id, type, content) VALUES ($1, $2, $3) RETURNING id, created_at',
+                input.project_id, input.type, input.content
+            )
+        return DocType(id=row['id'], project_id=input.project_id, type=input.type, content=input.content, created_at=str(row['created_at']))
+
+@strawberry.type
+class Subscription:
+    @strawberry.subscription
+    async def new_task(self, info) -> TaskType:
+        queue = asyncio.Queue()
+        new_task_subscribers.add(queue)
+        try:
+            while True:
+                task = await queue.get()
+                yield task
+        finally:
+            new_task_subscribers.remove(queue)
+
+schema = strawberry.Schema(Query, Mutation, Subscription)
+app.include_router(GraphQLRouter(schema, subscription_protocols=[GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL]), prefix="/graphql") 
