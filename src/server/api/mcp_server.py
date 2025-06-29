@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body, status
 from pydantic import BaseModel
-from core import cacd
+from src.mcp.core.core import cacd
 from typing import Optional, List, Any
 import json
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
@@ -33,7 +33,7 @@ import sys
 import importlib.util
 import yaml
 import filecmp
-from graphql_schema import schema
+from src.server.schemas.graphql_schema import schema
 
 # Импортируем генератор memory-bank
 from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES

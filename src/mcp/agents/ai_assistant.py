@@ -4,7 +4,7 @@ import os
 import asyncio
 import websockets
 import json
-from ai_utils import log_action, generate_task_summary, analyze_task_links, generate_mermaid_diagram
+from src.mcp.tools.ai_utils import log_action, generate_task_summary, analyze_task_links, generate_mermaid_diagram
 
 MCP_URL = "http://localhost:8001"
 API_KEY = os.getenv("MCP_API_KEY", "test")

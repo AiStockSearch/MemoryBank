@@ -2,8 +2,8 @@ import argparse
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-from ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec, export_to_pdf, export_to_pptx
-from ai_assistant import get_tasks
+from src.mcp.tools.ai_utils import generate_task_summary, analyze_task_links, generate_mermaid_diagram, review_changelog, generate_roadmap, ai_cluster_problems, ai_generate_graphs, ai_analyze_competitors, ai_generate_bell_curve, ai_generate_swot, ai_generate_recommendations, ai_review_spec, export_to_pdf, export_to_pptx
+from src.mcp.agents.ai_assistant import get_tasks
 import pandas as pd
 
 def cmd_summary(args):

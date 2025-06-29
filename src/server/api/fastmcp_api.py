@@ -6,11 +6,11 @@ from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi import status
 import json
-from openai_client import call_openai
-from hf_client import call_hf
-from jira_client import create_issue
-from linear_client import create_issue as create_linear_issue
-from notion_client import create_page as create_notion_page
+from src.services.openai.client import call_openai
+from src.services.huggingface.client import call_hf
+from src.services.jira.client import create_issue
+from src.services.linear.client import create_issue as create_linear_issue
+from src.services.notion.client import create_page as create_notion_page
 
 app = FastAPI(title="FastMCP API")
 
