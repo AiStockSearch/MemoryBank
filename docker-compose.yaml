@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  fastmcp-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./archive:/app/archive
+    restart: unless-stopped
+  fastmcp-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync_agent
+    volumes:
+      - ./archive:/app/archive
+    restart: unless-stopped 
