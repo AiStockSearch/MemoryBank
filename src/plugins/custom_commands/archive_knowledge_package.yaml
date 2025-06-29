@@ -1,0 +1,7 @@
+name: archive_knowledge_package
+description: Архивирует указанный knowledge package
+parameters:
+  - name: file
+    type: string
+    required: true
+action: archive_knowledge_package_action 

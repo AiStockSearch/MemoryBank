@@ -1,0 +1,7 @@
+action: echo_action
+description: Echo test command
+name: echo
+parameters:
+- name: msg
+  required: true
+  type: string

@@ -1,0 +1,23 @@
+# name: FastMCP Server CI
+
+# on: [push, pull_request]
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     env:
+#       MCP_API_KEY: test-key
+#     steps:
+#       - uses: actions/checkout@v4
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.11'
+#       - name: Install dependencies
+#         run: pip install -r requirements.txt fastmcp pytest
+#       - name: Run FastMCP server (background)
+#         run: |
+#           nohup python mcp_fastmcp_server.py &
+#           sleep 5
+#       - name: Run tests
+#         run: pytest test_fastmcp_server.py 

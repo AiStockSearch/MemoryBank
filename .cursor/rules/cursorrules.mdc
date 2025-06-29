@@ -1,0 +1,281 @@
+# Формирование Cursor Rules для проекта MCP-сервера
+
+Для интеграции проекта MCP-сервера с **Cursor AI** необходимо создать файл `cursor_rules.md`, который будет содержать правила и рекомендации для автоматизации работы с кодом, документацией и задачами. Эти правила помогут **LLM Cursor AI** понимать структуру проекта, генерировать релевантные команды, проверять код и документацию, а также поддерживать единообразие. Правила будут основаны на описанных эпиках MVP и структуре проекта, с учетом персонализации, federation, LLM-интеграции, безопасности и уведомлений.
+
+Файл `cursor_rules.md` будет размещен в папке `archive/<username>/<project_name>/cursor_rules/` и будет использоваться как локальный шаблон для каждого проекта. Также создадим глобальный шаблон в `memory-bank/global_templates/cursor_rules_template.md` для повторного использования.
+
+---
+
+## Содержание `cursor_rules.md`
+
+Файл `cursor_rules.md` будет содержать:
+1. **Метаданные** проекта (username, project_name, версия).
+2. **Правила** для работы с кодом, документацией, задачами и federation.
+3. **Шаблоны** для генерации кода, документации и команд.
+4. **Инструкции** для LLM Cursor AI по проверке и генерации.
+5. **Примеры** для типичных операций (например, создание задачи, синхронизация).
+
+### Формат
+- Используется Markdown с YAML-метаданными.
+- Правила структурированы по категориям (код, документация, задачи, federation).
+- Инструкции для LLM Cursor AI четкие, с приоритетами и ограничениями.
+
+---
+
+## Пример `cursor_rules.md`
+
+```markdown
+---
+metadata:
+  username: <username>
+  project_name: <project_name>
+  version: 1.0.0
+  created: 2025-06-29T04:45:00-03:00
+  updated: 2025-06-29T04:45:00-03:00
+  description: Правила для работы LLM Cursor AI с проектом MCP-сервера
+  origin: archive/<username>/<project_name>/cursor_rules/
+---
+
+# Cursor Rules для проекта <project_name>
+
+## Описание
+Этот файл содержит правила для работы **LLM Cursor AI** с проектом `<project_name>` пользователя `<username>`. Правила определяют, как генерировать код, проверять документацию, создавать задачи, синхронизировать данные через federation и взаимодействовать с MCP-сервером.
+
+## Структура проекта
+Проект следует структуре MCP-сервера:
+- `archive/<username>/<project_name>/` — данные проекта:
+  - `tasks/` — задачи в JSON.
+  - `cursor_rules/` — правила (этот файл).
+  - `snapshots/` — архивы снапшотов.
+  - `knowledge_packages/` — документация и best practices.
+  - `reports/` — отчеты LLM.
+  - `changelog.md` — история изменений.
+  - `auditLog.md` — аудит действий.
+- `memory-bank/` — шаблоны и команды:
+  - `global_templates/` — глобальные шаблоны.
+  - `custom_commands/<username>/<project_name>/` — кастомные команды.
+- `config/` — конфигурации (`mcp.yaml`, `llm.yaml`, `notifications.yaml`).
+- `src/` — исходный код (FastAPI, GraphQL, WebSocket).
+- `docs/` — документация.
+
+## Правила для LLM Cursor AI
+
+### 1. Генерация кода
+- **Язык**: Python 3.11.
+- **Библиотеки**: FastAPI, FastMCP, PyJWT, cryptography, aiohttp, redis, pyyaml, pytest.
+- **Структура**:
+  - Код размещается в `src/<module>/` (например, `src/server/`, `src/graphql/`).
+  - Каждый файл содержит docstring с описанием, автором (`<username>`) и датой.
+- **Правила**:
+  - Следовать PEP 8.
+  - Использовать асинхронные функции (`async/await`) для FastAPI и aiohttp.
+  - Проверять безопасность кода с помощью Bandit/Safety.
+  - Генерировать автотесты в `tests/` для каждого модуля.
+- **Пример**:
+  ```python
+  """REST endpoint для инициализации проекта.
+  Автор: <username>
+  Дата: 2025-06-29
+  """
+  from fastapi import APIRouter
+  router = APIRouter()
+  
+  @router.post("/initialize")
+  async def initialize_project(username: str, project_name: str):
+      # Логика инициализации
+      return {"status": "success", "project": f"{username}/{project_name}"}
+  ```
+
+### 2. Работа с документацией
+- **Расположение**: `docs/`, `knowledge_packages/`.
+- **Формат**: Markdown с YAML-метаданными.
+- **Правила**:
+  - Проверять наличие метаданных (`title`, `author`, `date`, `version`).
+  - Обновлять `docs/README_FASTMCP.md` при добавлении новых функций.
+  - Генерировать документацию для новых endpoint’ов, функций и процессов.
+  - Проверять орфографию и стиль (использовать Markdownlint).
+- **Пример**:
+  ```markdown
+  ---
+  title: Инициализация проекта
+  author: <username>
+  date: 2025-06-29
+  version: 1.0
+  ---
+  # Инициализация проекта
+  Описание процесса создания проекта с использованием REST API.
+  ```
+
+### 3. Создание и управление задачами
+- **Расположение**: `tasks/` в формате JSON.
+- **Правила**:
+  - Создавать задачи через MCP-инструмент с метаданными (`id`, `title`, `status`, `created_by`, `created_at`).
+  - Проверять уникальность `id` задачи.
+  - Логировать создание/изменение задач в `changelog.md` и `auditLog.md`.
+  - Генерировать задачи на основе анализа документации (`docs/`, `knowledge_packages/`).
+- **Пример задачи**:
+  ```json
+  {
+    "id": "task-001",
+    "title": "Создать REST-endpoint для инициализации",
+    "status": "open",
+    "created_by": "<username>",
+    "created_at": "2025-06-29T04:45:00-03:00"
+  }
+  ```
+
+### 4. Federation и синхронизация
+- **Процесс**:
+  - Проверять существование `archive/<username>/<project_name>/` перед push/pull.
+  - Валидировать правила в `cursor_rules/` на наличие метаданных (`username/project_name`).
+  - Создавать снапшот после успешного push/pull в `snapshots/` с git-тегом.
+- **Правила**:
+  - Генерировать команды для federation через MCP-инструмент.
+  - Проверять целостность данных перед синхронизацией (использовать dry-run).
+  - Отправлять уведомления о federation через Telegram, macOS, Apple Push.
+- **Пример команды**:
+  ```yaml
+  command: federation_push
+  description: Отправить данные проекта в другой инстанс
+  parameters:
+    username: <username>
+    project_name: <project_name>
+    target_instance: <url>
+  ```
+
+### 5. Безопасность
+- **Правила**:
+  - Проверять JWT-авторизацию для всех операций.
+  - Использовать роли: `admin` (полный доступ), `user` (чтение/задачи), `agent` (автоматизация).
+  - Логировать действия в `auditLog.md` с указанием пользователя, действия и времени.
+  - Шифровать файлы в `archive/<username>/<project_name>/` с помощью `cryptography`.
+- **Пример лога**:
+  ```markdown
+  [2025-06-29T04:45:00-03:00] User: <username>, Action: create_project, Status: success
+  ```
+
+### 6. Уведомления
+- **Правила**:
+  - Генерировать уведомления для событий: проект создан, federation выполнен, ошибка.
+  - Использовать `config/notifications.yaml` для настройки (Telegram, macOS, Apple Push).
+  - Логировать уведомления в `auditLog.md`.
+- **Пример уведомления**:
+  ```yaml
+  event: project_initialized
+  message: Проект <project_name> успешно создан для <username>
+  channels:
+    - telegram
+    - macos
+    - apple_push
+  ```
+
+### 7. Проверка и ревью
+- **Правила**:
+  - Проверять код на соответствие PEP 8, используя `flake8`.
+  - Проверять документацию на наличие метаданных и орфографию.
+  - Анализировать `docs/`, `cursor_rules/`, `knowledge_packages/` для генерации рекомендаций.
+  - Создавать отчеты ревью в `reports/` в формате Markdown.
+- **Пример отчета**:
+  ```markdown
+  ---
+  title: Ревью правил для <project_name>
+  author: LLM Cursor AI
+  date: 2025-06-29
+  ---
+  ## Проблемы
+  - Отсутствует метаданные в `cursor_rules.md`.
+  ## Рекомендации
+  - Добавить `username/project_name` в метаданные.
+  ```
+
+## Инструкции для LLM Cursor AI
+1. **Приоритет**: Выполнять задачи в порядке приоритета эпиков (см. `federation_backlog.md`):
+   - P1: Инициализация, federation, LLM, безопасность.
+   - P2: Синхронизация, GraphQL, UI, git, уведомления.
+2. **Ограничения**:
+   - Не изменять структуру `archive/<username>/<project_name>/` без логирования.
+   - Не генерировать код без автотестов.
+   - Не отправлять уведомления без записи в `auditLog.md`.
+3. **Процесс**:
+   - Читать `docs/`, `knowledge_packages/` для контекста.
+   - Генерировать код/документацию/команды на основе шаблонов из `memory-bank/global_templates/`.
+   - Проверять изменения через dry-run перед сохранением.
+   - Логировать все действия в `changelog.md` и `auditLog.md`.
+
+## Примеры операций
+### Создание новой задачи
+1. Прочитать шаблон из `memory-bank/global_templates/tasks_template.json`.
+2. Сгенерировать JSON задачу с уникальным `id`.
+3. Сохранить в `tasks/`.
+4. Логировать в `changelog.md` и `auditLog.md`.
+5. Отправить уведомление через Telegram.
+
+### Federation
+1. Проверить `archive/<username>/<project_name>/`.
+2. Валидировать правила в `cursor_rules/`.
+3. Сгенерировать команду push/pull через MCP-инструмент.
+4. Создать снапшот в `snapshots/`.
+5. Отправить уведомление.
+
+## Версионирование
+- Все изменения в `cursor_rules.md` фиксируются в git.
+- При каждом изменении обновлять `metadata.updated` и создавать коммит.
+
+---
+```
+
+---
+
+## Размещение файла
+1. **Локально**: Сохранить `cursor_rules.md` в `archive/<username>/<project_name>/cursor_rules/`.
+2. **Глобально**: Создать шаблон в `memory-bank/global_templates/cursor_rules_template.md` с аналогичной структурой, но без конкретных `username` и `project_name`.
+
+## Интеграция с Cursor AI
+1. В **Cursor AI** открыть проект MCP-сервера.
+2. Убедиться, что `cursor_rules.md` находится в папке `archive/<username>/<project_name>/cursor_rules/`.
+3. Cursor AI автоматически подхватит правила при работе с проектом.
+4. Для глобальных правил указать путь к `memory-bank/global_templates/cursor_rules_template.md` в настройках Cursor AI.
+
+## Следующие шаги
+1. Создать `cursor_rules.md` для конкретного проекта, заменив `<username>` и `<project_name>`.
+2. Добавить автотесты в `tests/` для проверки валидности `cursor_rules.md` (наличие метаданных, структура).
+3. Обновить `docs/README_FASTMCP.md` с описанием использования `cursor_rules.md` в Cursor AI.
+4. Настроить MCP-инструмент для автоматического создания `cursor_rules.md` при инициализации проекта (Эпик 1).
+
+---
+
+## UML-диаграмма для создания `cursor_rules.md`
+```mermaid
+sequenceDiagram
+  participant C as Cursor_AI
+  participant M as MCP_Server
+  participant B as Memory_Bank
+  C->>M: Request cursor_rules for <username>/<project_name>
+  M->>B: Check archive/<username>/<project_name>/cursor_rules/
+  alt Rules missing
+    M->>B: Copy from memory-bank/global_templates/cursor_rules_template.md
+    M->>B: Customize with <username>/<project_name>
+  end
+  M->>B: Save cursor_rules.md
+  M->>B: Log to changelog.md, auditLog.md
+  M->>C: Return cursor_rules.md
+  C-->>C: Apply rules for code/doc generation
+```
+
+---
+
+## Обновление `federation_backlog.md`
+Добавим в `federation_backlog.md` задачу по интеграции `cursor_rules.md` с Cursor AI:
+
+```markdown
+### Новые предложения (дополнение)
+8. **Интеграция cursor_rules с Cursor AI** [P2]:
+   - Создавать `cursor_rules.md` при инициализации проекта.
+   - Валидировать правила через LLM перед federation.
+   - Добавить автотесты для проверки структуры `cursor_rules.md`.
+   - Обновить документацию в `docs/mcp_integration_usage.md`.
+```
+
+---
+
+Этот файл `cursor_rules.md` обеспечивает полную интеграцию с **Cursor AI**, поддерживая автоматизацию задач, генерацию кода, документации и federation в рамках MCP-сервера. Если нужны дополнительные уточнения или примеры, дайте знать!

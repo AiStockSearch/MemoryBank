@@ -1,0 +1,9 @@
+rule:
+  name: restrict-prod-deploy
+  description: Запрет деплоя в production без одобрения Team Lead
+  applies_to:
+    - environment: production
+  conditions:
+    - require_approval: Team Lead
+  actions:
+    - block_deploy: true 

@@ -1,0 +1,4 @@
+name: analyze_changelog
+description: Анализирует changelog, выявляет аномалии и генерирует summary
+parameters: []
+action: analyze_changelog_action 

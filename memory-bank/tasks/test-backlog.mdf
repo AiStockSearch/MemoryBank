@@ -1,0 +1,74 @@
+# Backlog задач для тестирования MCP/POP/интеграций
+
+## REST API
+- [ ] Экспорт архива знаний (`/projects/<origin>/export`)
+- [ ] Получить backlog (`/backlog?origin=...`)
+- [ ] Получить feedback (`/feedback?origin=...`)
+- [ ] Получить knowledge package (`/knowledge_package?origin=...&name=...`)
+- [ ] Получить контекст задачи (`/context/<task_id>`)
+- [ ] Создать задачу (`POST /tasks`)
+- [ ] Сгенерировать отчёт (`POST /generate_report`)
+- [ ] Генерация текста через LLM (`POST /api/llm/generate`)
+- [ ] Интеграция с Jira/Linear/Notion/Slack/Telegram/Confluence (custom_command endpoints)
+- [ ] Проверка edge cases: неизвестный endpoint, неверный метод, невалидные данные
+
+## POP/WebSocket-агенты
+- [ ] Echo-сценарий (ping/pong)
+- [ ] LLM-агент через WebSocket (prompt → ответ)
+- [ ] Broadcast (рассылка всем агентам)
+- [ ] Chain-of-Agents (цепочка агентов: генерация → анализ → публикация)
+- [ ] Проверка ошибок, невалидных payload, закрытия соединения
+
+## Бизнес-POP/WebSocket-агенты
+- [ ] TaskAgent: создание задачи через POP/WebSocket (Jira, Linear, Notion)
+- [ ] FeedbackAgent: отправка и получение feedback (file, расширения)
+- [ ] BIAgent: отправка данных и получение отчёта (CSV, BI)
+- [ ] Проверка обязательных полей, ошибок, асинхронности
+
+## CLI-команды
+- [ ] Генерация спецификации (`generate-spec`)
+- [ ] AI-ревью (`review-spec`)
+- [ ] Экспорт/импорт спецификаций (`export-spec`, `import-template`)
+- [ ] Автотесты для CLI (успех, ошибки, edge cases)
+- [ ] Federation: экспорт/импорт шаблонов, восстановление из архива
+
+## Memory Bank и Federation
+- [ ] Проверка работы с архивом знаний (создание, экспорт, импорт, восстановление)
+- [ ] Проверка версионирования шаблонов, конфликтов, источников
+- [ ] Проверка CLI-команд для batch-операций
+
+## Безопасность и best practices
+- [ ] Проверка авторизации (JWT, X-API-KEY) для защищённых endpoint'ов
+- [ ] Проверка CORS, rate limiting, ошибок авторизации
+- [ ] Проверка логирования ошибок и действий (auditLog, decisionLog)
+- [ ] Проверка восстановления после сбоев (recovery, rollback)
+
+## Edge cases и устойчивость
+- [ ] Массовые параллельные запросы (race conditions, broadcast)
+- [ ] Ошибки БД, недоступность внешних сервисов (mock/fault injection)
+- [ ] Проверка SLA/healthcheck endpoint'а
+
+## Расширенные сценарии
+- [ ] Интеграция новых POP/WebSocket-агентов (расширяемость)
+- [ ] Проверка plug-n-play сервисов (отключение/подключение)
+- [ ] Проверка обновления/миграции схемы БД (alembic, backup)
+- [ ] Проверка работы с несколькими проектами/архивами
+- [ ] Проверка federation между инстансами (экспорт/импорт, конфликты)
+- [ ] Проверка Lessons Learned/ретроспективы (фиксация ошибок, улучшений)
+
+## LLM-агенты: задачи для тестирования
+- [ ] Генерация текста через REST (`/api/llm/generate`): OpenAI, HuggingFace, Anthropic, Gemini, Local LLM
+- [ ] Генерация текста через WebSocket/POP (prompt → ответ)
+- [ ] Проверка поддержки параметров (model, prompt, params, temperature, max_tokens)
+- [ ] Проверка ошибок: невалидный prompt, несуществующая модель, превышение лимитов
+- [ ] Проверка авторизации (JWT, X-API-KEY) для LLM endpoint'ов
+- [ ] Проверка асинхронных сценариев (несколько запросов подряд, параллельно)
+- [ ] Проверка broadcast (один prompt — несколько агентов)
+- [ ] Проверка цепочек агентов (Chain-of-Agents: генерация → анализ → публикация)
+- [ ] Проверка интеграции LLM-агентов с TaskAgent, FeedbackAgent, BIAgent
+- [ ] Проверка устойчивости к сбоям (отключение внешнего API, timeouts)
+- [ ] Проверка логирования ошибок и действий LLM-агентов
+- [ ] Проверка безопасности (prompt injection, rate limiting, CORS)
+- [ ] Проверка нагрузки (много параллельных запросов)
+- [ ] Проверка edge cases (пустой prompt, слишком длинный prompt, невалидные параметры)
+- [ ] Проверка восстановления после ошибок (recovery, retry) 

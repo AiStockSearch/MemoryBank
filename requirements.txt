@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+aiosqlite
+markdown
+httpx
+pytest
+asyncpg
+pgvector
+pync
+strawberry-graphql
+passlib[bcrypt]
+python-jose
+aiohttp 

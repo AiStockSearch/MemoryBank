@@ -1,0 +1,4 @@
+name: ai_review_changes
+description: Анализирует последние изменения, предлагает улучшения и выявляет риски
+parameters: []
+action: ai_review_changes_action 

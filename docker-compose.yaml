@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  fastmcp-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./archive:/app/archive
+    restart: unless-stopped
+    environment:
+      - DB_DSN=postgresql://postgres:postgres@db:5432/postgres
+      - API_KEY=supersecretkey
+      - JWT_SECRET=supersecretjwtkey
+    depends_on:
+      - db
+  fastmcp-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync_agent
+    volumes:
+      - ./archive:/app/archive
+    restart: unless-stopped 
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata: 
