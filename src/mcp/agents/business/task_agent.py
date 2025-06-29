@@ -1,10 +1,7 @@
-from typing import Dict
-from src.services.jira.client import JiraClient
-from src.services.linear.client import LinearClient
-from src.services.notion.client import NotionClient
+from typing import Dict, Any
 
 class TaskAgent:
-    def __init__(self, jira: JiraClient = None, linear: LinearClient = None, notion: NotionClient = None):
+    def __init__(self, jira: Any = None, linear: Any = None, notion: Any = None):
         self.jira = jira
         self.linear = linear
         self.notion = notion
