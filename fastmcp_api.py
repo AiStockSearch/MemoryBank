@@ -2,6 +2,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Body
 from pydantic import BaseModel
 from mcp_fastmcp_server import export_project, get_backlog, create_task, get_context, update_rules, federation_pull_knowledge, get_knowledge_package, get_feedback, generate_report
 from typing import List
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
+from fastapi import status
 
 app = FastAPI(title="FastMCP API")
 
@@ -21,7 +24,10 @@ def export(origin: str):
 @app.get("/projects/{origin}/backlog")
 def backlog(origin: str):
     print('DEBUG get_backlog:', type(get_backlog), get_backlog)
-    return get_backlog.fn(origin)
+    result = get_backlog.fn(origin)
+    if 'error' in result:
+        raise HTTPException(status_code=404, detail=result['error'])
+    return result
 
 @app.post("/projects/{origin}/tasks")
 def create_task_api(origin: str, data: TaskCreate = Body(...)):
@@ -40,12 +46,18 @@ def update_rules_api(origin: str, rules: List[str] = Body(...), user_id: str = B
 @app.get("/projects/{origin}/knowledge/{name}")
 def get_knowledge(origin: str, name: str):
     print('DEBUG get_knowledge_package:', type(get_knowledge_package), get_knowledge_package)
-    return get_knowledge_package.fn(origin, name)
+    result = get_knowledge_package.fn(origin, name)
+    if 'error' in result:
+        raise HTTPException(status_code=404, detail=result['error'])
+    return result
 
 @app.get("/projects/{origin}/feedback")
 def feedback(origin: str):
     print('DEBUG get_feedback:', type(get_feedback), get_feedback)
-    return get_feedback.fn(origin)
+    result = get_feedback.fn(origin)
+    if 'error' in result:
+        raise HTTPException(status_code=404, detail=result['error'])
+    return result
 
 @app.post("/projects/{origin}/report")
 def report(origin: str, data: ReportContext):
@@ -78,4 +90,11 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             await manager.broadcast(f"Echo: {data}")
     except WebSocketDisconnect:
-        manager.disconnect(websocket) 
+        manager.disconnect(websocket)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"error": str(exc), "type": type(exc).__name__}
+    ) 
