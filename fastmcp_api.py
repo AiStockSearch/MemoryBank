@@ -9,6 +9,7 @@ import json
 from openai_client import call_openai
 from hf_client import call_hf
 from jira_client import create_issue
+from linear_client import create_issue as create_linear_issue
 
 app = FastAPI(title="FastMCP API")
 
@@ -155,6 +156,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 try:
                     key, url = await create_issue(summary, description, project_key, issue_type)
                     response = {"role": "jira", "result": {"key": key, "url": url}}
+                except Exception as e:
+                    response = {"error": str(e)}
+            elif cmd == "linear_create":
+                # POP-агент для Linear
+                title = msg.get("title")
+                description = msg.get("description")
+                team_id = msg.get("team_id")
+                try:
+                    issue_id, issue_url = await create_linear_issue(title, description, team_id)
+                    response = {"role": "linear", "result": {"id": issue_id, "url": issue_url}}
                 except Exception as e:
                     response = {"error": str(e)}
             else:
