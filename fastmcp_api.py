@@ -10,6 +10,7 @@ from openai_client import call_openai
 from hf_client import call_hf
 from jira_client import create_issue
 from linear_client import create_issue as create_linear_issue
+from notion_client import create_page as create_notion_page
 
 app = FastAPI(title="FastMCP API")
 
@@ -166,6 +167,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 try:
                     issue_id, issue_url = await create_linear_issue(title, description, team_id)
                     response = {"role": "linear", "result": {"id": issue_id, "url": issue_url}}
+                except Exception as e:
+                    response = {"error": str(e)}
+            elif cmd == "notion_create":
+                # POP-агент для Notion
+                title = msg.get("title")
+                content = msg.get("content")
+                database_id = msg.get("database_id")
+                try:
+                    page_id, page_url = await create_notion_page(title, content, database_id)
+                    response = {"role": "notion", "result": {"id": page_id, "url": page_url}}
                 except Exception as e:
                     response = {"error": str(e)}
             else:
