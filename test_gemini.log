@@ -1,0 +1,94 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/jsnanodegree/Desktop/CURSOR AI
+plugins: anyio-4.9.0, asyncio-1.0.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5 items
+
+src/tests/services/test_gemini_client.py FF                              [ 40%]
+src/tests/mcp/test_gemini_agent.py ...                                   [100%]
+
+=================================== FAILURES ===================================
+____________________________ test_complete_success _____________________________
+
+    @pytest.mark.asyncio
+    async def test_complete_success():
+        client = GeminiClient("test-key")
+        with patch("aiohttp.ClientSession", new_callable=AsyncMock) as mock_session:
+            mock_session_instance = mock_session.return_value.__aenter__.return_value
+            mock_post_ctx = AsyncMock()
+            mock_post_ctx.__aenter__.return_value.status = 200
+            mock_post_ctx.__aenter__.return_value.json = AsyncMock(return_value={
+                "candidates": [{"content": {"parts": [{"text": "Ответ Gemini"}]}}]
+            })
+            mock_session_instance.post.return_value = mock_post_ctx
+>           result = await client.complete("test prompt")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/tests/services/test_gemini_client.py:16: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <src.services.gemini.client.GeminiClient object at 0x112faa900>
+prompt = 'test prompt', max_tokens = 1024
+
+    async def complete(self, prompt: str, max_tokens: int = 1024) -> Optional[str]:
+        headers = {"Content-Type": "application/json"}
+        params = {"key": self.api_key}
+        payload = {
+            "contents": [
+                {"parts": [{"text": prompt}]}
+            ],
+            "generationConfig": {"maxOutputTokens": max_tokens}
+        }
+>       async with aiohttp.ClientSession() as session:
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'coroutine' object does not support the asynchronous context manager protocol
+
+src/services/gemini/client.py:19: TypeError
+______________________________ test_complete_fail ______________________________
+
+    @pytest.mark.asyncio
+    async def test_complete_fail():
+        client = GeminiClient("test-key")
+        with patch("aiohttp.ClientSession", new_callable=AsyncMock) as mock_session:
+            mock_session_instance = mock_session.return_value.__aenter__.return_value
+            mock_post_ctx = AsyncMock()
+            mock_post_ctx.__aenter__.return_value.status = 400
+            mock_post_ctx.__aenter__.return_value.json = AsyncMock(return_value={"error": "bad request"})
+            mock_session_instance.post.return_value = mock_post_ctx
+>           result = await client.complete("test prompt")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/tests/services/test_gemini_client.py:28: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <src.services.gemini.client.GeminiClient object at 0x1130039d0>
+prompt = 'test prompt', max_tokens = 1024
+
+    async def complete(self, prompt: str, max_tokens: int = 1024) -> Optional[str]:
+        headers = {"Content-Type": "application/json"}
+        params = {"key": self.api_key}
+        payload = {
+            "contents": [
+                {"parts": [{"text": prompt}]}
+            ],
+            "generationConfig": {"maxOutputTokens": max_tokens}
+        }
+>       async with aiohttp.ClientSession() as session:
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'coroutine' object does not support the asynchronous context manager protocol
+
+src/services/gemini/client.py:19: TypeError
+=============================== warnings summary ===============================
+src/tests/services/test_gemini_client.py::test_complete_success
+src/tests/services/test_gemini_client.py::test_complete_fail
+  /Users/jsnanodegree/Desktop/CURSOR AI/src/services/gemini/client.py:19: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with aiohttp.ClientSession() as session:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/services/test_gemini_client.py::test_complete_success - Type...
+FAILED src/tests/services/test_gemini_client.py::test_complete_fail - TypeErr...
+=================== 2 failed, 3 passed, 2 warnings in 0.11s ====================
