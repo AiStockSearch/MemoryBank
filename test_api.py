@@ -61,7 +61,7 @@ def test_export():
 
 def test_backlog_not_found():
     r = requests.get(f"{BASE}/projects/{ORIGIN}/backlog")
-    assert r.status_code == 200
+    assert r.status_code == 404
     assert "backlog not found" in r.text
 
 def test_feedback():
@@ -100,6 +100,29 @@ def test_invalid_method():
 def test_invalid_data():
     r = requests.post(f"{BASE}/projects/{ORIGIN}/tasks", json={"cmd": "bad"})
     assert r.status_code == 422
+
+@pytest.mark.asyncio
+async def test_websocket_echo():
+    uri = "ws://127.0.0.1:8010/ws/events"
+    async with websockets.connect(uri) as ws:
+        await ws.send("ping")
+        msg = await ws.recv()
+        assert "Echo" in msg
+
+@pytest.mark.asyncio
+async def test_websocket_invalid():
+    uri = "ws://127.0.0.1:8010/ws/events"
+    async with websockets.connect(uri) as ws:
+        with pytest.raises(TypeError):
+            await ws.send(1234)
+
+@pytest.mark.asyncio
+async def test_websocket_disconnect():
+    uri = "ws://127.0.0.1:8010/ws/events"
+    ws = await websockets.connect(uri)
+    await ws.send("disconnect")
+    await ws.close()
+    assert ws.close_code is not None
 
 if __name__ == "__main__":
     check_rest()

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Body
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from mcp_fastmcp_server import export_project, get_backlog, create_task, get_context, update_rules, federation_pull_knowledge, get_knowledge_package, get_feedback, generate_report
 from typing import List
 from fastapi.responses import JSONResponse
@@ -9,11 +9,11 @@ from fastapi import status
 app = FastAPI(title="FastMCP API")
 
 class TaskCreate(BaseModel):
-    command: str
-    task_id: str
+    command: str = Field(..., description="Команда для задачи", example="test")
+    task_id: str = Field(..., description="ID задачи", example="test-001")
 
 class ReportContext(BaseModel):
-    context: dict
+    context: dict = Field(..., description="Контекст для генерации отчёта", example={"task_id": "test-001", "summary": "test"})
 
 # REST endpoints
 @app.get("/projects/{origin}/export")
@@ -29,8 +29,11 @@ def backlog(origin: str):
         raise HTTPException(status_code=404, detail=result['error'])
     return result
 
-@app.post("/projects/{origin}/tasks")
-def create_task_api(origin: str, data: TaskCreate = Body(...)):
+@app.post("/projects/{origin}/tasks", summary="Создать задачу", description="Создаёт новую задачу для проекта.")
+def create_task_api(
+    origin: str,
+    data: TaskCreate = Body(...)
+):
     print('DEBUG create_task:', type(create_task), create_task)
     return create_task.fn(data.command, data.task_id)
 
@@ -59,7 +62,7 @@ def feedback(origin: str):
         raise HTTPException(status_code=404, detail=result['error'])
     return result
 
-@app.post("/projects/{origin}/report")
+@app.post("/projects/{origin}/report", summary="Сгенерировать отчёт", description="Генерирует отчёт по задаче на основе контекста.")
 def report(origin: str, data: ReportContext):
     print('DEBUG generate_report:', type(generate_report), generate_report)
     return {"report": generate_report.fn(data.context)}
