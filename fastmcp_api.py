@@ -7,6 +7,7 @@ from fastapi.requests import Request
 from fastapi import status
 import json
 from openai_client import call_openai
+from hf_client import call_hf
 
 app = FastAPI(title="FastMCP API")
 
@@ -133,6 +134,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 try:
                     llm_resp = await call_openai(prompt, model, max_tokens, temperature)
                     response = {"role": "llm_openai", "result": llm_resp}
+                except Exception as e:
+                    response = {"error": str(e)}
+            elif cmd == "hf":
+                # POP-агент для HuggingFace
+                prompt = msg.get("prompt") or text
+                model = msg.get("model", "gpt2")
+                try:
+                    llm_resp = await call_hf(prompt, model)
+                    response = {"role": "llm_hf", "result": llm_resp}
                 except Exception as e:
                     response = {"error": str(e)}
             else:
