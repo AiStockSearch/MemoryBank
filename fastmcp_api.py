@@ -15,19 +15,23 @@ class ReportContext(BaseModel):
 # REST endpoints
 @app.get("/projects/{origin}/export")
 def export(origin: str):
-    return {"result": export_project(origin)}
+    print('DEBUG export_project:', type(export_project), export_project)
+    return {"result": export_project.fn(origin)}
 
 @app.get("/projects/{origin}/backlog")
 def backlog(origin: str):
-    return get_backlog.call(origin)
+    print('DEBUG get_backlog:', type(get_backlog), get_backlog)
+    return get_backlog.fn(origin)
 
 @app.post("/projects/{origin}/tasks")
 def create_task_api(origin: str, data: TaskCreate = Body(...)):
-    return create_task(data.command, data.task_id)
+    print('DEBUG create_task:', type(create_task), create_task)
+    return create_task.fn(data.command, data.task_id)
 
 @app.get("/projects/{origin}/context/{task_id}")
 def context(origin: str, task_id: str):
-    return get_context.call(task_id)
+    print('DEBUG get_context:', type(get_context), get_context)
+    return get_context.fn(task_id)
 
 @app.post("/projects/{origin}/rules")
 def update_rules_api(origin: str, rules: List[str] = Body(...), user_id: str = Body(...)):
@@ -35,15 +39,18 @@ def update_rules_api(origin: str, rules: List[str] = Body(...), user_id: str = B
 
 @app.get("/projects/{origin}/knowledge/{name}")
 def get_knowledge(origin: str, name: str):
-    return get_knowledge_package.call(origin, name)
+    print('DEBUG get_knowledge_package:', type(get_knowledge_package), get_knowledge_package)
+    return get_knowledge_package.fn(origin, name)
 
 @app.get("/projects/{origin}/feedback")
 def feedback(origin: str):
-    return get_feedback.call(origin)
+    print('DEBUG get_feedback:', type(get_feedback), get_feedback)
+    return get_feedback.fn(origin)
 
 @app.post("/projects/{origin}/report")
 def report(origin: str, data: ReportContext):
-    return {"report": generate_report.invoke(data.context)}
+    print('DEBUG generate_report:', type(generate_report), generate_report)
+    return {"report": generate_report.fn(data.context)}
 
 # WebSocket для событий (минимальный пример)
 class ConnectionManager:

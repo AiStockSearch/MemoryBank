@@ -2,6 +2,7 @@ import requests
 import sys
 import asyncio
 import websockets
+import pytest
 
 BASE = "http://127.0.0.1:8010"
 ORIGIN = "cursor"
@@ -52,6 +53,53 @@ async def check_ws():
     except Exception as e:
         print("WebSocket error:", e)
         sys.exit(1)
+
+def test_export():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/export")
+    assert r.status_code == 200
+    assert "archive/cursor/export_cursor.zip" in r.text
+
+def test_backlog_not_found():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/backlog")
+    assert r.status_code == 200
+    assert "backlog not found" in r.text
+
+def test_feedback():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/feedback")
+    assert r.status_code == 200
+    assert "test feedback" in r.text
+
+def test_knowledge_package():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/knowledge/test-package")
+    assert r.status_code == 200
+    assert "test knowledge" in r.text
+
+def test_context():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/context/test-001")
+    assert r.status_code == 200
+    assert "test-001" in r.text
+
+def test_create_task():
+    r = requests.post(f"{BASE}/projects/{ORIGIN}/tasks", json={"command": "test", "task_id": "test-001"})
+    assert r.status_code == 200
+    assert "created" in r.text
+
+def test_report():
+    r = requests.post(f"{BASE}/projects/{ORIGIN}/report", json={"context": {"task_id": "test-001", "summary": "test"}})
+    assert r.status_code == 200
+    assert "Отчёт по задаче test-001" in r.text
+
+def test_invalid_endpoint():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/invalid")
+    assert r.status_code == 404
+
+def test_invalid_method():
+    r = requests.get(f"{BASE}/projects/{ORIGIN}/tasks")
+    assert r.status_code in (405, 404)
+
+def test_invalid_data():
+    r = requests.post(f"{BASE}/projects/{ORIGIN}/tasks", json={"cmd": "bad"})
+    assert r.status_code == 422
 
 if __name__ == "__main__":
     check_rest()
