@@ -21,6 +21,12 @@ class TaskCreate(BaseModel):
 class ReportContext(BaseModel):
     context: dict = Field(..., description="Контекст для генерации отчёта", example={"task_id": "test-001", "summary": "test"})
 
+class LLMGenerateRequest(BaseModel):
+    provider: str = Field(..., example="openai")
+    model: str = Field(..., example="gpt-3.5-turbo")
+    prompt: str = Field(..., example="Say hello in Russian")
+    params: dict = Field(default_factory=dict)
+
 # REST endpoints
 @app.get("/projects/{origin}/export")
 def export(origin: str):
@@ -72,6 +78,21 @@ def feedback(origin: str):
 def report(origin: str, data: ReportContext):
     print('DEBUG generate_report:', type(generate_report), generate_report)
     return {"report": generate_report.fn(data.context)}
+
+@app.post("/llm/generate", summary="Генерация текста через LLM (OpenAI/HF)")
+async def llm_generate(req: LLMGenerateRequest):
+    try:
+        if req.provider == "openai":
+            max_tokens = req.params.get("max_tokens", 64)
+            temperature = req.params.get("temperature", 0.7)
+            result = await call_openai(req.prompt, req.model, max_tokens, temperature)
+        elif req.provider == "hf":
+            result = await call_hf(req.prompt, req.model)
+        else:
+            raise HTTPException(status_code=400, detail="Unknown provider")
+        return {"result": result}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # WebSocket для событий (минимальный пример)
 class ConnectionManager:

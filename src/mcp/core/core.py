@@ -1,5 +1,5 @@
 import os
 from src.cacd import CACD
- 
-dsn = os.getenv("DB_DSN")
-cacd = CACD(dsn) 
+
+def get_cacd(memory_bank):
+    return CACD(memory_bank=memory_bank) 

@@ -1,6 +1,5 @@
 import strawberry
 from typing import List, Optional
-from src.mcp.core.core import cacd
 import asyncio
 
 # In-memory pubsub для подписок по сущностям

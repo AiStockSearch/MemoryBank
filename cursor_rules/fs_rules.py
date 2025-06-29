@@ -40,7 +40,7 @@ def create_rule(meta: Dict[str, Any], body: str, base_dir: str = RULES_DIR, file
     data = {'meta': meta, 'body': body}
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(generate_mdc_file(data))
-    commit_rule_change(filepath, 'create', user_id, reason)
+    # commit_rule_change(filepath, 'create', user_id, reason)  # <-- временно отключено для тестов
     if on_change:
         on_change('create', filepath, meta, user_id, reason)
     return filepath

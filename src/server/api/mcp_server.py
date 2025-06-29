@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Body, status
 from pydantic import BaseModel
-from src.mcp.core.core import cacd
+from src.mcp.core.core import get_cacd
+from src.mcp.memory.memory_bank import get_memory_bank
 from typing import Optional, List, Any
 import json
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, PlainTextResponse
 import logging
 import os
 import pync
@@ -38,7 +39,11 @@ from src.server.schemas.graphql_schema import schema
 # Импортируем генератор memory-bank
 from src.mcp.memory.generate_memory_bank import generate_memory_bank, TEMPLATES
 
+# Импортируем и монтируем все endpoint'ы из fastmcp_api.py
+from src.server.api.fastmcp_api import app as fastmcp_app
+
 app = FastAPI()
+app.mount("/api", fastmcp_app)
 
 API_KEY = os.getenv("API_KEY", "supersecretkey")
 SECRET_KEY = os.getenv("JWT_SECRET", "supersecretjwtkey")
@@ -152,7 +157,8 @@ DEFAULT_TEMPLATES = [
 ]
 
 @app.post('/tasks', dependencies=[Depends(verify_api_key)])
-async def create_task(req: TaskRequest):
+async def create_task(req: TaskRequest, memory_bank=Depends(get_memory_bank)):
+    cacd = get_cacd(memory_bank)
     logger.info(f"Создание задачи: {req.task_id}")
     task = await cacd.process_command(req.command, req.task_id)
     msg = f"Создана задача {task['id']} для проекта {task.get('project_id', '')}"
@@ -161,9 +167,9 @@ async def create_task(req: TaskRequest):
     return {"status": "created", "task": task}
 
 @app.get('/context/{task_id}', dependencies=[Depends(verify_api_key)])
-async def get_context(task_id: str):
+async def get_context(task_id: str, memory_bank=Depends(get_memory_bank)):
     logger.info(f"Получение контекста для задачи: {task_id}")
-    context = await cacd.memory.get_context(task_id)
+    context = await memory_bank.get_context(task_id)
     if context is None:
         logger.warning(f"Контекст не найден: {task_id}")
         raise HTTPException(status_code=404, detail="Context not found")
@@ -214,8 +220,8 @@ def get_readme():
         return HTMLResponse(f"<pre>README.md not found or error: {e}</pre>", status_code=404)
 
 @app.post('/projects')
-async def create_project(req: ProjectCreateRequest):
-    pool = await cacd.memory._get_pool()
+async def create_project(req: ProjectCreateRequest, memory_bank=Depends(get_memory_bank)):
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             'INSERT INTO projects (name, description, origin) VALUES ($1, $2, $3) RETURNING id',
@@ -239,8 +245,8 @@ async def create_project(req: ProjectCreateRequest):
         return {"project_id": project_id}
 
 @app.get('/projects/by_origin')
-async def get_project_by_origin(origin: str = Query(...)):
-    pool = await cacd.memory._get_pool()
+async def get_project_by_origin(origin: str = Query(...), memory_bank=Depends(get_memory_bank)):
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT id FROM projects WHERE origin = $1', origin)
         if not row:
@@ -277,8 +283,8 @@ def notify_mac(title: str, message: str):
 # notify_mac("MCP", "Новая задача создана!")
 
 @app.post('/docs', dependencies=[Depends(verify_api_key)])
-async def create_doc(project_id: int, type: str, content: str, user_id: str = Header(None, alias="X-USER-ID")):
-    pool = await cacd.memory._get_pool()
+async def create_doc(project_id: int, type: str, content: str, user_id: str = Header(None, alias="X-USER-ID"), memory_bank=Depends(get_memory_bank)):
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             'INSERT INTO docs (project_id, type, content) VALUES ($1, $2, $3) RETURNING id',
@@ -297,15 +303,15 @@ async def create_doc(project_id: int, type: str, content: str, user_id: str = He
     return {"status": "doc created", "doc_id": doc_id}
 
 @app.get('/docs/{doc_id}/versions')
-async def get_doc_versions(doc_id: int):
-    pool = await cacd.memory._get_pool()
+async def get_doc_versions(doc_id: int, memory_bank=Depends(get_memory_bank)):
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch('SELECT version, data, user_id, created_at FROM doc_versions WHERE doc_id = $1 ORDER BY version DESC', doc_id)
         return [{"version": r["version"], "user_id": r["user_id"], "created_at": r["created_at"], "data": r["data"]} for r in rows]
 
 @app.post('/docs/{doc_id}/rollback')
-async def rollback_doc(doc_id: int, version: int, user_id: str = Header(None, alias="X-USER-ID")):
-    pool = await cacd.memory._get_pool()
+async def rollback_doc(doc_id: int, version: int, user_id: str = Header(None, alias="X-USER-ID"), memory_bank=Depends(get_memory_bank)):
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT data, project_id FROM doc_versions WHERE doc_id = $1 AND version = $2', doc_id, version)
         if not row:
@@ -323,17 +329,17 @@ async def rollback_doc(doc_id: int, version: int, user_id: str = Header(None, al
     return {"status": "rolled_back", "doc_id": doc_id, "version": version}
 
 @app.get('/projects/{project_id}/export', dependencies=[Depends(verify_api_key)])
-async def export_project(project_id: int, user_id: str = Header(None, alias="X-USER-ID")):
+async def export_project(project_id: int, user_id: str = Header(None, alias="X-USER-ID"), memory_bank=Depends(get_memory_bank)):
     """
     Экспортирует проект и все связанные сущности в zip-архив в archive/<origin>/.
     """
     # Получаем все данные
-    tasks = await cacd.memory.get_all_tasks(project_id)
-    rules = await cacd.memory.get_all_rules(project_id)
-    templates = await cacd.memory.get_all_templates(project_id)
-    embeddings = await cacd.memory.get_all_embeddings(project_id)
-    docs = await cacd.memory.get_all_docs(project_id)
-    history = await cacd.memory.get_all_history(project_id)
+    tasks = await memory_bank.get_all_tasks(project_id)
+    rules = await memory_bank.get_all_rules(project_id)
+    templates = await memory_bank.get_all_templates(project_id)
+    embeddings = await memory_bank.get_all_embeddings(project_id)
+    docs = await memory_bank.get_all_docs(project_id)
+    history = await memory_bank.get_all_history(project_id)
 
     # Формируем zip-архив в памяти
     zip_buffer = io.BytesIO()
@@ -355,7 +361,7 @@ async def export_project(project_id: int, user_id: str = Header(None, alias="X-U
         f.write(zip_buffer.getvalue())
 
     # Логируем экспорт в changelog (history)
-    pool = await cacd.memory._get_pool()
+    pool = await memory_bank.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             'INSERT INTO history (project_id, user_id, action, details) VALUES ($1, $2, $3, $4)',
@@ -667,7 +673,6 @@ async def batch_apply_memory_bank(batch: UploadFile = File(...)):
 
 @app.get('/federation/{origin}/pull_knowledge')
 async def federation_pull_knowledge(origin: str, file: str):
-    import os
     path = os.path.join('archive', origin, 'knowledge_packages', file)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail='Knowledge package not found')
@@ -725,3 +730,39 @@ async def federation_push_template(origin: str, file: UploadFile = File(...)):
 # Подключение GraphQL схемы
 graphql_app = GraphQLRouter(schema)
 app.include_router(graphql_app, prefix="/graphql")
+
+@app.get('/backlog')
+async def get_backlog(origin: str):
+    path = os.path.join('archive', origin, 'federation_backlog.md')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='backlog not found')
+    with open(path, 'r', encoding='utf-8') as f:
+        return PlainTextResponse(f.read())
+
+@app.get('/feedback')
+async def get_feedback(origin: str):
+    path = os.path.join('archive', origin, 'feedback.md')
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='feedback not found')
+    with open(path, 'r', encoding='utf-8') as f:
+        return PlainTextResponse(f.read())
+
+@app.post('/generate_report')
+async def generate_report(context: dict = Body(...)):
+    # Заглушка: возвращаем фиктивный отчёт
+    return {"report": ["Test report for", context]}
+
+@app.get('/knowledge_package')
+async def get_knowledge_package(origin: str, name: str):
+    path = os.path.join('archive', origin, 'knowledge_packages', name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='Knowledge package not found')
+    with open(path, 'r', encoding='utf-8') as f:
+        return PlainTextResponse(f.read())
+
+@app.get('/federation/pull_knowledge')
+async def federation_pull_knowledge(origin: str, file: str):
+    path = os.path.join('archive', origin, 'knowledge_packages', file)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail='Knowledge package not found')
+    return FileResponse(path, filename=file)

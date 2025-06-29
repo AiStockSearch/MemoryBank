@@ -132,19 +132,24 @@ class MemoryBank:
     """
     def __init__(self, dsn=None):
         self.dsn = dsn or os.getenv("DB_DSN")
-        self.pool = None
+        self._pool = None
 
-    async def _get_pool(self):
-        if not self.pool:
-            self.pool = await asyncpg.create_pool(dsn=self.dsn)
-            async with self.pool.acquire() as conn:
+    async def get_pool(self):
+        if self._pool is None:
+            self._pool = await asyncpg.create_pool(dsn=self.dsn)
+            async with self._pool.acquire() as conn:
                 for sql in CREATE_TABLES_SQL:
                     await conn.execute(sql)
-        return self.pool
+        return self._pool
+
+    async def close(self):
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
 
     async def get_context(self, task_id: str, project_id: int = None):
         """Получить контекст по task_id."""
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             if project_id:
                 row = await conn.fetchrow('SELECT data FROM context WHERE task_id = $1 AND project_id = $2', task_id, project_id)
@@ -154,7 +159,7 @@ class MemoryBank:
 
     async def save_context(self, task_id: str, data: str, project_id: int = None):
         """Сохранить или обновить контекст по task_id."""
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             if project_id:
                 await conn.execute('''
@@ -168,37 +173,41 @@ class MemoryBank:
                 ''', task_id, data)
 
     async def get_all_tasks(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM tasks WHERE project_id = $1', project_id)
             return [dict(row) for row in rows]
 
     async def get_all_rules(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM cursor_rules WHERE project_id = $1', project_id)
             return [dict(row) for row in rows]
 
     async def get_all_templates(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM templates WHERE project_id = $1', project_id)
             return [dict(row) for row in rows]
 
     async def get_all_embeddings(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM embeddings WHERE project_id = $1', project_id)
             return [dict(row) for row in rows]
 
     async def get_all_docs(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM docs WHERE project_id = $1', project_id)
             return [dict(row) for row in rows]
 
     async def get_all_history(self, project_id: int):
-        pool = await self._get_pool()
+        pool = await self.get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch('SELECT * FROM history WHERE project_id = $1', project_id)
-            return [dict(row) for row in rows] 
+            return [dict(row) for row in rows]
+
+# Dependency для FastAPI
+async def get_memory_bank():
+    return MemoryBank() 

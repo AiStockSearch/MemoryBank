@@ -1,7 +1,12 @@
 import pytest
+import pytest_asyncio
 from jose import jwt
 from datetime import datetime, timedelta
 import os
+import asyncpg
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from src.mcp.memory.memory_bank import MemoryBank
 
 SECRET_KEY = "supersecretjwtkey"
 ALGORITHM = "HS256"
@@ -17,4 +22,10 @@ def valid_jwt_token():
         "exp": expire
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-    return token 
+    return token
+
+@pytest_asyncio.fixture(scope="session")
+async def memory_bank():
+    mb = MemoryBank()
+    yield mb
+    await mb.close() 

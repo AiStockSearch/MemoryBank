@@ -1,72 +1,135 @@
-# MCP/REST/POP/LLM: Аудит, интеграция и QA
-
-## MCP/Backend: Архитектура и вызовы
-- [ ] Провести аудит интерфейсов MCP-объектов (FunctionTool, FunctionResourceTemplate, FunctionPrompt): определить, какой публичный метод отвечает за вызов (например, .call(), .run(), .execute()).
-- [ ] Рефакторинг endpoint-ов: заменить все вызовы на универсальный (например, .call()), добавить обработку ошибок.
-- [ ] Документировать интерфейсы MCP-объектов (описание методов, параметры, примеры).
-
-## REST API
-- [ ] Добавить OpenAPI/Swagger документацию для всех endpoint.
-- [ ] Внедрить централизованный обработчик ошибок (middleware, подробные сообщения клиенту).
-- [ ] Валидация входных данных (Pydantic-схемы, строгие типы).
-- [ ] Покрыть тестами все endpoint (успешные и ошибочные сценарии).
-- [ ] Добавить тесты на авторизацию, права доступа, rate limiting.
-- [ ] Покрыть edge cases: невалидные данные, отсутствие файлов, некорректные параметры.
-
-## WebSocket (POP-сокет)
-- [ ] Описать и реализовать формат сообщений (event schema, типы, статусы).
-- [ ] Добавить тесты на reconnect, broadcast, ошибки.
-- [ ] Покрыть сценарии обмена сообщениями между LLM-агентами.
-- [ ] Покрыть тестами edge cases: разрыв соединения, невалидные сообщения, массовые события.
-
-## Взаимодействие LLM-агентов
-- [ ] Описать протокол взаимодействия (форматы, статусы, очереди, эскалация).
-- [ ] Добавить тесты на коллаборацию, передачу задач, эскалацию.
-- [ ] Внедрить логирование и мониторинг диалогов между агентами.
-- [ ] Покрыть тестами сценарии ошибок и конфликтов между агентами.
-
-## QA и автоматизация тестирования
-- [ ] Покрыть REST API unit и интеграционными тестами (pytest, requests).
-- [ ] Покрыть WebSocket unit и интеграционными тестами (pytest, websockets).
-- [ ] Добавить e2e-тесты для основных бизнес-сценариев (создание задачи, экспорт, feedback, обмен знаниями).
-- [ ] Добавить тесты на отказоустойчивость (failover, recovery).
-- [ ] Внедрить CI/CD для автоматического запуска тестов (GitHub Actions, Makefile).
-- [ ] Добавить шаблоны тест-кейсов и чек-листы для ручного тестирования.
-- [ ] Покрыть тестами документацию (валидность OpenAPI, примеры).
-
-## Документация и визуализация
-- [ ] Визуализировать архитектуру обмена знаниями и событий (Mermaid, Sequence, Gantt).
-- [ ] Сформировать README с примерами интеграции, тестирования, запуска.
-- [ ] Добавить usage-инструкции для QA и тестирования.
-
-# Миграция структуры CURSOR AI MCP (2024-06)
-
-## Основные задачи миграции и развития структуры
-
-- [ ] Создать ветку для миграции (`refactor/structure-migration`)
-- [ ] Пошаговая миграция структуры:
-    - [ ] Перенос ядра API в `src/server/`
-    - [ ] Перенос интеграций в `src/services/`
-    - [ ] MCP, federation, memory — в `src/mcp/`
-    - [ ] memory_bank — в `src/memory_bank/`
-    - [ ] Плагины — в `src/plugins/`
-    - [ ] Шаблоны, скрипты, legacy, shared, docs — по новым папкам
-- [ ] Обновление импортов и путей (глобальный поиск/замена импортов, путей, entrypoints)
-- [ ] Обновление Dockerfile, Makefile, .env (проверка и корректировка путей)
-- [ ] Обновление документации (README, usage, архитектурные схемы, инструкции)
-- [ ] Проведение smoke-теста (запуск всех тестов, исправление ошибок)
-- [ ] Ведение CHANGELOG.md (фиксация каждого этапа миграции)
-- [ ] Code review и слияние ветки (финальная проверка, слияние в main/dev)
-- [ ] Внедрение scaffold-скриптов (для автогенерации структуры новых сервисов/агентов)
-- [ ] Автоматизация генерации usage и автотестов (для новых сервисов/агентов)
-
----
-
-**Статус:**
-- Чек-лист согласован и утверждён
-- Шаблоны, scaffold-скрипты и инструкции готовы
-- Миграция стартует поэтапно, прогресс фиксируется в CHANGELOG.md и tasks.mdf
-
----
-
-_Обновлено ассистентом 2024-06-27. Для актуализации статуса — отмечайте выполненные пункты и добавляйте комментарии по этапам._ 
+[
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "test",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "test",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "test",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "test",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  },
+  {
+    "id": "t1",
+    "command": "do_something",
+    "context": "test context",
+    "rules": [],
+    "status": "pending"
+  }
+]
