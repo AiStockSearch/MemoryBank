@@ -1,135 +1,66 @@
 [
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "ext-1",
+    "command": "integration_analysis",
+    "context": "Анализ требований и приоритизация внешних сервисов (Confluence, Slack, Google Drive, базы знаний). Сбор use-case, оценка API, определение MVP.",
+    "rules": ["security", "async", "plug-n-play"],
+    "status": "pending",
+    "priority": 1
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "ext-2",
+    "command": "integration_architecture",
+    "context": "Разработка архитектурного шаблона для сервисов и агентов. Стандартизация clients, POP/WebSocket-агентов, документации.",
+    "rules": ["scalability", "modularity"],
+    "status": "pending",
+    "priority": 2
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "ext-3",
+    "command": "confluence_integration",
+    "context": "Реализация асинхронного клиента и POP/WebSocket-агента для Confluence: создание/чтение страниц, поиск, выгрузка знаний. Примеры usage, автотесты.",
+    "rules": ["async", "api-key-or-oauth"],
+    "status": "pending",
+    "priority": 3
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "ext-4",
+    "command": "slack_integration",
+    "context": "Реализация асинхронного клиента и POP/WebSocket-агента для Slack: отправка сообщений, создание каналов, интеграция с workflow. Примеры usage, автотесты.",
+    "rules": ["async", "api-key-or-oauth"],
+    "status": "pending",
+    "priority": 4
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "ext-5",
+    "command": "gdrive_integration",
+    "context": "Реализация асинхронного клиента и POP/WebSocket-агента для Google Drive: загрузка/выгрузка файлов, поиск, управление доступом. Примеры usage, автотесты.",
+    "rules": ["async", "oauth2"],
+    "status": "pending",
+    "priority": 5
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "llm-1",
+    "command": "llm_agents_extension",
+    "context": "Расширение поддержки LLM-агентов: Anthropic, Gemini, локальные модели. Асинхронные клиенты, POP/WebSocket-агенты, конфигурируемый выбор модели, usage, автотесты.",
+    "rules": ["async", "env-config"],
+    "status": "pending",
+    "priority": 6
   },
   {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "pop-1",
+    "command": "business_pop_agents",
+    "context": "Добавление новых POP/WebSocket-агентов для бизнес-процессов: автоматизация задач, интеграция с BI, сбор feedback. Примеры usage, автотесты.",
+    "rules": ["async", "stateless"],
+    "status": "pending",
+    "priority": 7
   },
   {
-    "id": "t1",
-    "command": "test",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "test",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "test",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "test",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
-  },
-  {
-    "id": "t1",
-    "command": "do_something",
-    "context": "test context",
-    "rules": [],
-    "status": "pending"
+    "id": "doc-1",
+    "command": "integration_docs_tests",
+    "context": "Документация и автотесты для всех новых интеграций: описание API, usage, сценарии, coverage > 80%.",
+    "rules": ["docs", "tests", "examples"],
+    "status": "pending",
+    "priority": 8
   }
 ]
