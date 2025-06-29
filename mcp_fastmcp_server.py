@@ -21,7 +21,7 @@ def export_project(origin: str) -> str:
                 zipf.write(full_path, rel_path)
     return str(out_path)
 
-@mcp.resource('/get_backlog')
+@mcp.resource('/get_backlog/{origin}')
 def get_backlog(origin: str) -> dict:
     """Возвращает backlog для origin."""
     backlog_path = Path('archive') / origin / 'federation_backlog.md'
@@ -35,7 +35,7 @@ def create_task(command: str, task_id: str) -> dict:
     # TODO: интеграция с CACD/task engine
     return {"status": "created", "task_id": task_id, "command": command}
 
-@mcp.resource('/get_context')
+@mcp.resource('/get_context/{task_id}')
 def get_context(task_id: str) -> dict:
     """Возвращает контекст задачи по task_id."""
     # TODO: интеграция с memory/context storage
@@ -55,7 +55,7 @@ def federation_pull_knowledge(origin: str, file: str) -> str:
         return 'Файл не найден'
     return file_path.read_text(encoding='utf-8')
 
-@mcp.resource('/get_knowledge_package')
+@mcp.resource('/get_knowledge_package/{origin}/{name}')
 def get_knowledge_package(origin: str, name: str) -> dict:
     """Возвращает содержимое knowledge package."""
     kp_path = Path('archive') / origin / 'knowledge_packages' / name
@@ -63,7 +63,7 @@ def get_knowledge_package(origin: str, name: str) -> dict:
         return {'error': 'not found'}
     return {'content': kp_path.read_text(encoding='utf-8')}
 
-@mcp.resource('/get_feedback')
+@mcp.resource('/get_feedback/{origin}')
 def get_feedback(origin: str) -> dict:
     """Возвращает feedback для origin."""
     fb_path = Path('archive') / origin / 'feedback.md'
