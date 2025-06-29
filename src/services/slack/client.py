@@ -1,19 +1,31 @@
 import aiohttp
-import os
+from typing import Optional, Dict, List
 
-async def send_message(channel: str, text: str, token: str = None):
-    token = token or os.getenv('SLACK_API_TOKEN')
-    if not token:
-        raise ValueError('SLACK_API_TOKEN не задан')
-    url = 'https://slack.com/api/chat.postMessage'
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json',
-    }
-    payload = {'channel': channel, 'text': text}
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=payload) as resp:
-            data = await resp.json()
-            if data.get('ok'):
-                return data['ts'], data.get('message', {}).get('text', '')
-            raise RuntimeError(f'Slack API error: {data}') 
+class SlackClient:
+    def __init__(self, bot_token: str):
+        self.bot_token = bot_token
+        self.base_url = "https://slack.com/api"
+
+    async def send_message(self, channel: str, text: str) -> Optional[Dict]:
+        url = f"{self.base_url}/chat.postMessage"
+        headers = {
+            "Authorization": f"Bearer {self.bot_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {"channel": channel, "text": text}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as resp:
+                data = await resp.json()
+                if data.get("ok"):
+                    return data
+                return None
+
+    async def list_channels(self) -> List[Dict]:
+        url = f"{self.base_url}/conversations.list"
+        headers = {"Authorization": f"Bearer {self.bot_token}"}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                data = await resp.json()
+                if data.get("ok"):
+                    return data.get("channels", [])
+                return [] 
