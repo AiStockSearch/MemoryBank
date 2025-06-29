@@ -5,6 +5,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi import status
+import json
 
 app = FastAPI(title="FastMCP API")
 
@@ -91,7 +92,42 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            await manager.broadcast(f"Echo: {data}")
+            try:
+                msg = json.loads(data)
+            except Exception:
+                response = {"Echo": data}
+                print('RECV (raw):', data)
+                print('SEND:', response)
+                await manager.broadcast(json.dumps(response))
+                continue
+            cmd = msg.get("cmd")
+            text = msg.get("text")
+            # Рекурсивно парсить text, пока это JSON с result
+            while True:
+                try:
+                    text_obj = json.loads(text)
+                    if isinstance(text_obj, dict) and "result" in text_obj:
+                        text = text_obj["result"]
+                    else:
+                        break
+                except Exception:
+                    break
+            # Ответ формируем строго по текущему cmd
+            if cmd == "generate":
+                response = {"role": "gen", "result": f"generated: {text}"}
+            elif cmd == "analyze":
+                response = {"role": "analyze", "result": f"analyzed: {text}"}
+            elif cmd == "confirm":
+                response = {"role": "confirm", "result": f"confirmed: {text}"}
+            elif cmd == "broadcast":
+                response = {"role": "broadcast", "result": f"broadcast: {text}"}
+            elif cmd == "summarize":
+                response = {"role": "llm", "result": f"summary: {text}"}
+            else:
+                response = {"error": "unknown command"}
+            print('RECV:', msg)
+            print('SEND:', response)
+            await manager.broadcast(json.dumps(response))
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
