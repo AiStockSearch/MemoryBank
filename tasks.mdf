@@ -109,5 +109,224 @@
     "context": "test context",
     "rules": [],
     "status": "pending"
+  },
+  {
+    "id": "AUDIT-1",
+    "epic": "Внедрение auditLog.md",
+    "owner": "AI/DevOps",
+    "due": "2024-07-10",
+    "acceptance_criteria": [
+      "Логируются все ключевые действия и ошибки",
+      "Формат: timestamp, user, action, status, details",
+      "Не влияет на производительность",
+      "Есть автотесты",
+      "Документация обновлена"
+    ],
+    "subtasks": [
+      {"desc": "Проанализировать события для логирования", "owner": "AI", "due": "2024-07-02"},
+      {"desc": "Реализовать middleware для логирования", "owner": "DevOps", "due": "2024-07-04"},
+      {"desc": "Описать формат записи и структуру файла", "owner": "AI", "due": "2024-07-04"},
+      {"desc": "Добавить автотесты", "owner": "QA", "due": "2024-07-06"},
+      {"desc": "Обновить документацию", "owner": "Docs", "due": "2024-07-07"}
+    ]
+  },
+  {
+    "id": "SEC-1",
+    "epic": "Security.md — политика безопасности и чек-листы",
+    "owner": "AI/DevOps",
+    "due": "2024-07-12",
+    "acceptance_criteria": [
+      "Описаны основные угрозы (OWASP, API, LLM, интеграции)",
+      "Есть чек-листы для ревью кода и деплоя",
+      "Примеры атак и сценарии защиты",
+      "Best practices для хранения секретов, токенов, ключей",
+      "Security.md включён в процесс ревью"
+    ],
+    "subtasks": [
+      {"desc": "Составить чек-лист угроз", "owner": "AI", "due": "2024-07-03"},
+      {"desc": "Описать политику хранения секретов", "owner": "DevOps", "due": "2024-07-05"},
+      {"desc": "Привести примеры атак и сценарии защиты", "owner": "AI", "due": "2024-07-06"},
+      {"desc": "Описать best practices для разработчиков", "owner": "AI", "due": "2024-07-07"},
+      {"desc": "Добавить секцию Security review в процесс ревью", "owner": "Docs", "due": "2024-07-08"}
+    ]
+  },
+  {
+    "id": "CI-1",
+    "epic": "CI/CD — автоматизация тестов, деплой, релизы",
+    "owner": "DevOps",
+    "due": "2024-07-15",
+    "acceptance_criteria": [
+      "Описан pipeline (lint, test, build, deploy, release)",
+      "Примеры workflow (GitHub Actions, GitLab CI)",
+      "Инструкции по работе с секретами и rollback",
+      "Документация по best practices CI/CD"
+    ],
+    "subtasks": [
+      {"desc": "Описать pipeline", "owner": "DevOps", "due": "2024-07-05"},
+      {"desc": "Привести примеры workflow", "owner": "DevOps", "due": "2024-07-07"},
+      {"desc": "Описать работу с секретами", "owner": "DevOps", "due": "2024-07-08"},
+      {"desc": "Добавить инструкции по откату", "owner": "DevOps", "due": "2024-07-10"},
+      {"desc": "Обновить документацию", "owner": "Docs", "due": "2024-07-12"}
+    ]
+  },
+  {
+    "id": "POP-TEST-1",
+    "epic": "Интеграционные тесты для POP/WebSocket-агентов",
+    "owner": "AI/QA",
+    "due": "2024-07-20",
+    "acceptance_criteria": [
+      "Для всех POP/WebSocket-агентов реализованы интеграционные тесты",
+      "Проверяются edge cases, ошибки, race conditions",
+      "Покрытие > 80%",
+      "Отчёт о покрытии включён в CI"
+    ],
+    "subtasks": [
+      {"desc": "Составить список агентов", "owner": "AI", "due": "2024-07-10"},
+      {"desc": "Реализовать тесты для каждого агента", "owner": "QA", "due": "2024-07-15"},
+      {"desc": "Проверить edge cases", "owner": "QA", "due": "2024-07-17"},
+      {"desc": "Добавить отчёт о покрытии", "owner": "DevOps", "due": "2024-07-19"}
+    ]
+  },
+  {
+    "id": "REC-1",
+    "epic": "Recovery & Rollback",
+    "owner": "AI/DevOps",
+    "due": "2024-07-18",
+    "acceptance_criteria": [
+      "Есть recovery.md с инструкциями по восстановлению данных и rollback",
+      "Покрыты основные сценарии потери данных и отката",
+      "Есть автотесты на recovery/rollback"
+    ],
+    "subtasks": [
+      {"desc": "Описать сценарии потери данных и recovery", "owner": "AI", "due": "2024-07-12"},
+      {"desc": "Добавить инструкции по откату миграций/обновлений", "owner": "DevOps", "due": "2024-07-14"},
+      {"desc": "Добавить автотесты на recovery/rollback", "owner": "QA", "due": "2024-07-16"}
+    ]
+  },
+  {
+    "id": "BPMN-1",
+    "epic": "Визуализация бизнес-процессов",
+    "owner": "Docs/AI",
+    "due": "2024-07-15",
+    "acceptance_criteria": [
+      "В документации есть BPMN/Gantt-диаграммы для ключевых сценариев",
+      "Описаны шаги и роли в процессах"
+    ],
+    "subtasks": [
+      {"desc": "Выбрать ключевые сценарии для визуализации", "owner": "AI", "due": "2024-07-10"},
+      {"desc": "Нарисовать BPMN/Gantt-диаграммы", "owner": "Docs", "due": "2024-07-13"},
+      {"desc": "Включить схемы в документацию", "owner": "Docs", "due": "2024-07-15"}
+    ]
+  },
+  {
+    "id": "REG-1",
+    "epic": "Реестр интеграций",
+    "owner": "Docs/AI",
+    "due": "2024-07-13",
+    "acceptance_criteria": [
+      "В docs/integrations.md есть таблица интеграций, поддержка, тесты, ограничения",
+      "Реестр обновляется при добавлении новых интеграций"
+    ]
+  },
+  {
+    "id": "OPENAPI-1",
+    "epic": "OpenAPI/Swagger генерация",
+    "owner": "DevOps/AI",
+    "due": "2024-07-14",
+    "acceptance_criteria": [
+      "Автоматически генерируется OpenAPI/Swagger для REST endpoint'ов",
+      "Swagger UI доступен и задокументирован"
+    ]
+  },
+  {
+    "id": "SLA-1",
+    "epic": "SLA/Healthcheck",
+    "owner": "DevOps",
+    "due": "2024-07-16",
+    "acceptance_criteria": [
+      "Описан SLA (uptime, latency, RTO/RPO)",
+      "Реализован endpoint /health",
+      "Есть интеграция с мониторингом и алертами"
+    ]
+  },
+  {
+    "id": "MIG-1",
+    "epic": "Миграция данных между инстансами",
+    "owner": "AI/Docs",
+    "due": "2024-07-18",
+    "acceptance_criteria": [
+      "В документации есть step-by-step инструкция по миграции",
+      "Описаны edge cases и CLI-команды"
+    ]
+  },
+  {
+    "id": "LESSONS-1",
+    "epic": "Lessons Learned/Ретроспектива",
+    "owner": "AI/Docs",
+    "due": "2024-07-20",
+    "acceptance_criteria": [
+      "В документации есть Lessons Learned по завершённым этапам",
+      "Описаны типовые ошибки и улучшения"
+    ]
+  },
+  {
+    "id": "CLI-TEST-1",
+    "epic": "Автотесты для CLI-команд",
+    "owner": "AI/QA",
+    "due": "2024-07-22",
+    "acceptance_criteria": [
+      "Для всех CLI-команд реализованы автотесты",
+      "Покрыты сценарии ошибок и edge cases"
+    ]
+  },
+  {
+    "id": "RESIL-1",
+    "epic": "Тесты на отказоустойчивость",
+    "owner": "AI/QA",
+    "due": "2024-07-24",
+    "acceptance_criteria": [
+      "Есть тесты на recovery, rollback, ошибки БД, недоступность сервисов",
+      "Документированы результаты"
+    ]
+  },
+  {
+    "id": "RACE-1",
+    "epic": "Тесты на race conditions и параллельные сценарии",
+    "owner": "AI/QA",
+    "due": "2024-07-26",
+    "acceptance_criteria": [
+      "Есть тесты на race conditions, broadcast, массовый импорт",
+      "Нет deadlock, корректность данных подтверждена"
+    ]
+  },
+  {
+    "id": "ARCH-1",
+    "epic": "Схема расширения архитектуры",
+    "owner": "AI/Docs",
+    "due": "2024-07-28",
+    "acceptance_criteria": [
+      "В документации есть схема расширения архитектуры (plug-n-play, паттерны)",
+      "Есть инструкции по добавлению новых сервисов"
+    ]
+  },
+  {
+    "id": "DEPLOY-1",
+    "epic": "Деплой в production",
+    "owner": "DevOps",
+    "due": "2024-07-30",
+    "acceptance_criteria": [
+      "В документации описан процесс деплоя, best practices, rollback",
+      "Есть инструкции по работе с переменными и секретами"
+    ]
+  },
+  {
+    "id": "DBMIG-1",
+    "epic": "Миграции схемы БД",
+    "owner": "DevOps",
+    "due": "2024-08-01",
+    "acceptance_criteria": [
+      "В документации описан процесс миграции схемы (alembic, backup)",
+      "Есть тесты на миграции"
+    ]
   }
 ]
