@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi import status
 import json
+from openai_client import call_openai
 
 app = FastAPI(title="FastMCP API")
 
@@ -123,6 +124,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 response = {"role": "broadcast", "result": f"broadcast: {text}"}
             elif cmd == "summarize":
                 response = {"role": "llm", "result": f"summary: {text}"}
+            elif cmd == "openai":
+                # POP-агент для OpenAI
+                prompt = msg.get("prompt") or text
+                model = msg.get("model", "gpt-3.5-turbo")
+                max_tokens = msg.get("max_tokens", 512)
+                temperature = msg.get("temperature", 0.7)
+                try:
+                    llm_resp = await call_openai(prompt, model, max_tokens, temperature)
+                    response = {"role": "llm_openai", "result": llm_resp}
+                except Exception as e:
+                    response = {"error": str(e)}
             else:
                 response = {"error": "unknown command"}
             print('RECV:', msg)

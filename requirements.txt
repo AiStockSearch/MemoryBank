@@ -10,4 +10,5 @@ pgvector
 pync
 strawberry-graphql
 passlib[bcrypt]
-python-jose 
+python-jose
+aiohttp 
