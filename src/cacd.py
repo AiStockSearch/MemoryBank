@@ -1,7 +1,7 @@
 import json
 import os
 from typing import Dict, Any, List
-from memory_bank import MemoryBank
+from src.mcp.memory.memory_bank import MemoryBank
 import asyncio
 
 class CACD:

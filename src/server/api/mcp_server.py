@@ -36,11 +36,12 @@ import filecmp
 from src.server.schemas.graphql_schema import schema
 
 # Импортируем генератор memory-bank
-from scripts.generate_memory_bank import generate_memory_bank, TEMPLATES
+from src.mcp.memory.generate_memory_bank import generate_memory_bank, TEMPLATES
 
 app = FastAPI()
 
-API_KEY = "supersecretkey"  # Можно вынести в переменные окружения
+API_KEY = os.getenv("API_KEY", "supersecretkey")
+SECRET_KEY = os.getenv("JWT_SECRET", "supersecretjwtkey")
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -54,7 +55,6 @@ S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET")
 
-SECRET_KEY = os.getenv("JWT_SECRET", "supersecretjwtkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

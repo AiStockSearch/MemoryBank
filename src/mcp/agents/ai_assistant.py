@@ -7,7 +7,7 @@ import json
 from src.mcp.tools.ai_utils import log_action, generate_task_summary, analyze_task_links, generate_mermaid_diagram
 
 MCP_URL = "http://localhost:8001"
-API_KEY = os.getenv("MCP_API_KEY", "test")
+API_KEY = os.getenv("API_KEY", "supersecretkey")
 PROJECT_ID = 1
 
 

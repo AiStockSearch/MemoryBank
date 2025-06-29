@@ -1,0 +1,17 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/jsnanodegree/Desktop/CURSOR AI
+plugins: anyio-4.9.0, asyncio-1.0.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 51 items / 1 error
+
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_fastmcp_server.py _______________
+src/tests/test_fastmcp_server.py:9: in <module>
+    @pytest.mark.parametrize('origin', ['client-x'])
+     ^^^^^^
+E   NameError: name 'pytest' is not defined
+=========================== short test summary info ============================
+ERROR src/tests/test_fastmcp_server.py - NameError: name 'pytest' is not defined
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 1.49s ===============================

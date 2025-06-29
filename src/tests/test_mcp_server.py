@@ -1,11 +1,14 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 import pytest
 from fastapi.testclient import TestClient
-from mcp_server import app, API_KEY
+from src.server.api.mcp_server import app, API_KEY
 import io
 import zipfile
 import tempfile
 from subprocess import check_output
-import os
 import base64
 import yaml
 

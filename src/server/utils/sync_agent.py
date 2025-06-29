@@ -1,11 +1,12 @@
 import time
 import requests
 import logging
+import os
 
 # === Параметры синхронизации ===
 EXPORT_URL = 'http://localhost:8001/rules/export'  # URL текущего инстанса
 IMPORT_URL = 'http://other-instance:8001/rules/import'  # URL целевого инстанса
-API_KEY = 'supersecretkey'  # API-KEY для авторизации
+API_KEY = os.getenv("API_KEY", "supersecretkey")  # API-KEY для авторизации
 SYNC_INTERVAL = 300  # Интервал синхронизации в секундах (5 минут)
 
 logging.basicConfig(level=logging.INFO)
