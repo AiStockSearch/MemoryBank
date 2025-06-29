@@ -63,7 +63,7 @@
       "async",
       "env-config"
     ],
-    "status": "in_progress",
+    "status": "done",
     "priority": 6
   },
   {
@@ -74,7 +74,7 @@
       "async",
       "stateless"
     ],
-    "status": "pending",
+    "status": "in_progress",
     "priority": 7
   },
   {

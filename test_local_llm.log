@@ -3,9 +3,9 @@ platform darwin -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
 rootdir: /Users/jsnanodegree/Desktop/CURSOR AI
 plugins: anyio-4.9.0, asyncio-1.0.0
 asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 5 items
+collected 7 items
 
-src/tests/services/test_gemini_client.py ..                              [ 40%]
-src/tests/mcp/test_gemini_agent.py ...                                   [100%]
+src/tests/services/test_local_llm_client.py ....                         [ 57%]
+src/tests/mcp/test_local_llm_agent.py ...                                [100%]
 
-============================== 5 passed in 0.10s ===============================
+============================== 7 passed in 0.10s ===============================
